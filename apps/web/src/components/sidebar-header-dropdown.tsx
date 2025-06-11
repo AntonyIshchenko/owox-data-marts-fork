@@ -5,7 +5,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, Github, Globe, AlertCircle, Scale, MessageCircle } from 'lucide-react';
+import { ChevronDown, Globe, AlertCircle, Scale, MessageCircle } from 'lucide-react';
 import { useRef, useState, useLayoutEffect } from 'react';
 import Logo from './Logo';
 
@@ -28,7 +28,7 @@ const menuItems: MenuItem[] = [
     title: 'GitHub Community',
     href: 'https://github.com/OWOX/owox-data-marts',
 
-    icon: Github, // Deprecated icon
+    icon: Globe,
   },
   {
     title: 'OWOX Website',
