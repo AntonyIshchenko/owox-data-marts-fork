@@ -25,10 +25,10 @@ jobs:
       matrix:
         check:
           - name: 'ESLint'
-            command: 'npm run lint --workspace=@owox/backend --max-warnings 0'
+            command: 'npm run lint --workspace=@owox/backend -- --max-warnings 0'
             timeout: 5
           - name: 'Prettier'
-            command: 'npm run format:check --workspace=@owox/backend --max-warnings 0'
+            command: 'npm run format:check --workspace=@owox/backend'
             timeout: 5
 
     steps:
