@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
 
 // Default config for the axios instance
-const axiosConfig = {
+const axiosConfig: AxiosRequestConfig = {
   // Base URL for API requests
   baseURL: import.meta.env.VITE_PUBLIC_API_URL || '/api',
 
@@ -14,6 +14,6 @@ const axiosConfig = {
   },
 };
 
-const apiClient = axios.create(axiosConfig);
+const apiClient: AxiosInstance = axios.create(axiosConfig);
 
 export default apiClient;
