@@ -6,7 +6,7 @@ const axiosConfig = {
   baseURL: import.meta.env.VITE_PUBLIC_API_URL || '/api',
 
   // Request timeout in milliseconds
-  timeout: 15000,
+  timeout: 18000,
 
   headers: {
     'Content-Type': 'application/json',
