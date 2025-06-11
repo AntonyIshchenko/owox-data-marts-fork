@@ -46,7 +46,7 @@ export const config = [
   },
   // Config files should use ES modules
   {
-    files: ['*.config.mjs', 'eslint.config.mjs', '*.config.js'],
+    files: ['*.config.cjs', 'eslint.config.cjs', '*.config.mjs', 'eslint.config.cjs'],
     languageOptions: {
       sourceType: 'module',
       globals: {
