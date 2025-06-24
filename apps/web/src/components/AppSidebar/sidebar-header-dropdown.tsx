@@ -28,7 +28,6 @@ const menuItems: MenuItem[] = [
   {
     title: 'GitHub Community',
     href: 'https://github.com/OWOX/owox-data-marts',
-
     icon: GitHubIcon,
   },
   {
