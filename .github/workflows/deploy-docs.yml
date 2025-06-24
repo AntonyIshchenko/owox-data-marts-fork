@@ -16,6 +16,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install dependencies
+        run: npm install -w @owox/docs
+
       - name: Build
         run: npm run build:docs
 
