@@ -4,8 +4,8 @@ import starlight from '@astrojs/starlight';
 import rehypeExternalLinks from 'rehype-external-links';
 
 export default defineConfig({
-  site: 'https://antonyishchenko.github.io',
-  base: '/owox-data-marts-fork',
+  site: 'https://antonyishchenko.github.io/owox-data-marts-fork',
+  base: '/',
   integrations: [
     starlight({
       title: 'OWOX Docs',
