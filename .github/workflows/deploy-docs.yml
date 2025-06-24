@@ -24,6 +24,9 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Add .nojekyll file
+        run: touch apps/docs/dist/.nojekyll
+
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
         with:
