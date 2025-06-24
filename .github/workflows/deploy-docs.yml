@@ -23,6 +23,8 @@ jobs:
         run: npm run build:docs
         env:
           NODE_ENV: production
+          DOCS_SITE: https://antonyishchenko.github.io/
+          DOCS_BASE: /owox-data-marts-fork
 
       - name: Add .nojekyll file
         run: touch apps/docs/dist/.nojekyll

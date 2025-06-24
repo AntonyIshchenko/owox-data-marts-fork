@@ -3,13 +3,18 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import rehypeExternalLinks from 'rehype-external-links';
 
+const isProduction = process.env.NODE_ENV === 'production';
+const site = (isProduction && process.env.DOCS_SITE) || 'http://localhost:4321';
+const base = (isProduction && process.env.DOCS_BASE) || '/';
+
 export default defineConfig({
-  site: 'https://antonyishchenko.github.io/owox-data-marts-fork',
-  base: '/owox-data-marts-fork',
+  site,
+  base,
+  trailingSlash: 'never',
   integrations: [
     starlight({
       title: 'OWOX Docs',
-      favicon: './favicon.png',
+      favicon: 'favicon.png',
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
       ],

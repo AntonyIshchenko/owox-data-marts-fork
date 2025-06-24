@@ -10,8 +10,10 @@ import matter from 'gray-matter';
 const SCRIPT_LOCATION = path.dirname(fileURLToPath(import.meta.url)); // Абсолютний шлях до папки зі скриптом
 const MONOREPO_ROOT = path.resolve(SCRIPT_LOCATION, '../..');
 const CONTENT_DEST_PATH = path.join(SCRIPT_LOCATION, 'src/content/docs');
-const ASSETS_DEST_PATH = path.join(SCRIPT_LOCATION, 'public/content-assets');
-const ASSETS_URL_PREFIX = '/content-assets';
+// const ASSETS_DEST_PATH = path.join(SCRIPT_LOCATION, 'public/content-assets');
+// const ASSETS_URL_PREFIX = '/content-assets';
+const ASSETS_DEST_PATH = path.join(SCRIPT_LOCATION, 'src/assets');
+// const ASSETS_URL_PREFIX = '~/assets';
 const rootContentIndexFile = path.join(CONTENT_DEST_PATH, 'index.md');
 
 /**
@@ -89,7 +91,11 @@ function processImageLinks(fileContent, filePaths) {
       const relativeImagePath = path.relative(MONOREPO_ROOT, sourceImageAbsPath);
       const normalizedImagePath = normalizePathToKebabCase(relativeImagePath);
       const destImageAbsPath = path.join(ASSETS_DEST_PATH, normalizedImagePath);
-      const destImageUrl = path.join(ASSETS_URL_PREFIX, normalizedImagePath).replace(/\\/g, '/');
+      // const destImageUrl = path.join(ASSETS_URL_PREFIX, normalizedImagePath).replace(/\\/g, '/');
+      const destImageUrl = path
+        .relative(filePaths.destinationPath, destImageAbsPath)
+        .replace(/\\/g, '/')
+        .substring(3);
 
       // Copy image
       fs.mkdirSync(path.dirname(destImageAbsPath), { recursive: true });
@@ -130,10 +136,16 @@ function processDocumentLinks(fileContent, filePaths) {
       normalizedLinkPath = normalizePrefixForLocalLinkPath(normalizedLinkPath);
 
       if (shouldConvertToAbsoluteLinkPath(normalizedLinkPath)) {
-        normalizedLinkPath =
-          '/' +
-          normalizePathToKebabCase(path.dirname(filePaths.relativePath)).replace(/\\/g, '/') +
-          normalizedLinkPath.substring(1);
+        // normalizedLinkPath =
+        //   '/' +
+        //   normalizePathToKebabCase(path.dirname(filePaths.relativePath)).replace(/\\/g, '/') +
+        //   normalizedLinkPath.substring(1);
+        //------------------------------
+        // const currentFolderName = normalizePathToKebabCase(
+        //   path.basename(path.dirname(filePaths.relativePath))
+        // );
+        // const fileName = normalizedLinkPath.substring(2);
+        // normalizedLinkPath = `../${currentFolderName}/${fileName}`;
       }
     }
 
