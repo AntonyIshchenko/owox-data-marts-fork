@@ -21,6 +21,8 @@ jobs:
 
       - name: Build
         run: npm run build:docs
+        env:
+          NODE_ENV: production
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
