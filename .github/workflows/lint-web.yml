@@ -4,12 +4,10 @@ on:
   pull_request:
     paths:
       - 'apps/web/**'
-      - 'packages/ui/**'
   push:
     branches: [main]
     paths:
       - 'apps/web/**'
-      - 'packages/ui/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
