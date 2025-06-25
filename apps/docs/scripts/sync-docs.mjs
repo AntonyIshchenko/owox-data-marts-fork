@@ -3,18 +3,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
 import matter from 'gray-matter';
+import { getConfig } from './env-config.mjs';
 
 /**
  * CONFIGURATION
  */
-const SCRIPT_LOCATION = path.dirname(fileURLToPath(import.meta.url)); // Абсолютний шлях до папки зі скриптом
-const MONOREPO_ROOT = path.resolve(SCRIPT_LOCATION, '../..');
-const CONTENT_DEST_PATH = path.join(SCRIPT_LOCATION, 'src/content/docs');
-// const ASSETS_DEST_PATH = path.join(SCRIPT_LOCATION, 'public/content-assets');
-// const ASSETS_URL_PREFIX = '/content-assets';
-const ASSETS_DEST_PATH = path.join(SCRIPT_LOCATION, 'src/assets');
-// const ASSETS_URL_PREFIX = '~/assets';
-const rootContentIndexFile = path.join(CONTENT_DEST_PATH, 'index.md');
+const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
+const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
+const ASSETS_DEST_PATH = path.join(APP_LOCATION, 'src/assets');
+const ROOT_CONTENT_INDEX_FILE = path.join(CONTENT_DEST_PATH, 'index.md');
+const BASE_URL = getConfig().base;
 
 /**
  * Converts string to Title Case, handling special cases like OWOX
@@ -124,7 +123,7 @@ function processDocumentLinks(fileContent, filePaths) {
     const [fullMatch, linkText, originalLinkPath] = match;
 
     let normalizedLinkPath;
-    if (filePaths.destinationPath === rootContentIndexFile && linkText === 'Source Code') {
+    if (filePaths.destinationPath === ROOT_CONTENT_INDEX_FILE && linkText === 'Source Code') {
       normalizedLinkPath = 'https://github.com/OWOX/owox-data-marts/tree/main/' + originalLinkPath;
     } else if (originalLinkPath.startsWith('#')) {
       normalizedLinkPath = originalLinkPath;
@@ -136,10 +135,11 @@ function processDocumentLinks(fileContent, filePaths) {
       normalizedLinkPath = normalizePrefixForLocalLinkPath(normalizedLinkPath);
 
       if (shouldConvertToAbsoluteLinkPath(normalizedLinkPath)) {
-        // normalizedLinkPath =
-        //   '/' +
-        //   normalizePathToKebabCase(path.dirname(filePaths.relativePath)).replace(/\\/g, '/') +
-        //   normalizedLinkPath.substring(1);
+        normalizedLinkPath =
+          BASE_URL +
+          '/' +
+          normalizePathToKebabCase(path.dirname(filePaths.relativePath)).replace(/\\/g, '/') +
+          normalizedLinkPath.substring(1);
         //------------------------------
         // const currentFolderName = normalizePathToKebabCase(
         //   path.basename(path.dirname(filePaths.relativePath))

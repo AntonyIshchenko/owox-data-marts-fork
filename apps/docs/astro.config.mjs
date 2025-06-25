@@ -2,15 +2,13 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import rehypeExternalLinks from 'rehype-external-links';
+import { getConfig } from './scripts/env-config.mjs';
 
-const isProduction = process.env.NODE_ENV === 'production';
-const site = (isProduction && process.env.DOCS_SITE) || 'http://localhost:4321';
-const base = (isProduction && process.env.DOCS_BASE) || '/';
+const { site, base } = getConfig();
 
 export default defineConfig({
   site,
   base,
-  trailingSlash: 'never',
   integrations: [
     starlight({
       title: 'OWOX Docs',
