@@ -4,10 +4,16 @@ import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
 import matter from 'gray-matter';
 import { getConfig } from './env-config.mjs';
+import {
+  toTitleCase,
+  normalizePathSeparators,
+  normalizePathToKebabCase,
+  normalizePathToKebabCaseForURL,
+  normalizePrefixForLocalLinkPath,
+  isLocalLinkPathInSameDirectory,
+} from './utils.mjs';
 
-/**
- * CONFIGURATION
- */
+// CONFIGURATION
 const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
 const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
@@ -16,48 +22,46 @@ const ROOT_CONTENT_INDEX_FILE = path.join(CONTENT_DEST_PATH, 'index.md');
 const BASE_URL = getConfig().base;
 
 /**
- * Converts string to Title Case, handling special cases like OWOX
- * @param {string} str - Input string
- * @returns {string} - Title cased string
+ * Main sync function that orchestrates the entire process
  */
-function toTitleCase(str) {
-  if (!str) return '';
-  return str
-    .replace(/[-_]/g, ' ')
-    .replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substring(1))
-    .replace('Owox', 'OWOX');
-}
+async function syncDocs() {
+  // eslint-disable-next-line no-undef
+  console.log('🔄 Starting documentation sync...');
 
-/**
- * Converts string to kebab-case
- * @param {string} str - Input string
- * @returns {string} - Kebab-cased string
- */
-function toKebabCase(str) {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1-$2') // Handle PascalCase and camelCase
-    .replace(/[_\s]+/g, '-') // Handle snake_case and spaces
-    .toLowerCase()
-    .replace(/-+/g, '-') // Remove multiple dashes
-    .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
-}
+  // 1. Clear previos results and setup directories
+  prepareFileSystem();
 
-/**
- * Normalizes file path to kebab-case for all path segments
- * @param {string} filePath - Original file path
- * @returns {string} - Normalized path in kebab-case
- */
-function normalizePathToKebabCase(filePath) {
-  const parsedPath = path.parse(filePath);
+  // 2. Find all markdown files
+  const sourceFiles = await findMarkdownFiles();
 
-  const normalizedDir = parsedPath.dir
-    .split(path.sep)
-    .map(dirPart => (dirPart ? toKebabCase(dirPart) : dirPart))
-    .join(path.sep);
+  // eslint-disable-next-line no-undef
+  console.log(`📄 Processing ${sourceFiles.length} files...`);
 
-  const normalizedName = toKebabCase(parsedPath.name);
+  // 3. Process each file
+  for (const sourceFilePath of sourceFiles) {
+    // eslint-disable-next-line no-undef
+    console.log(`Processing: ${path.relative(MONOREPO_ROOT, sourceFilePath)}`);
 
-  return path.join(normalizedDir, normalizedName + parsedPath.ext);
+    // 3.1 Prepare file paths and read the content
+    const filePaths = defineFilePaths(sourceFilePath);
+    fs.mkdirSync(path.dirname(filePaths.destinationPath), { recursive: true });
+
+    let fileContent = fs.readFileSync(filePaths.sourcePath, 'utf-8');
+
+    // 3.2. Find, copy, and replace image paths
+    fileContent = processImageLinks(fileContent, filePaths);
+
+    // 3.3. Find and replace paths to other file links
+    fileContent = processDocumentLinks(fileContent, filePaths);
+
+    // 3.4. Frontmatter
+    fileContent = processFrontmatter(fileContent, filePaths);
+
+    fs.writeFileSync(filePaths.destinationPath, fileContent);
+  }
+
+  // eslint-disable-next-line no-undef
+  console.log(`✅ Documentation sync completed successfully!`);
 }
 
 /**
@@ -68,6 +72,46 @@ function prepareFileSystem() {
   fs.rmSync(ASSETS_DEST_PATH, { recursive: true, force: true });
   fs.mkdirSync(CONTENT_DEST_PATH, { recursive: true });
   fs.mkdirSync(ASSETS_DEST_PATH, { recursive: true });
+}
+
+/**
+ * Finds all markdown files in the monorepo based on search patterns
+ * @returns {Promise<string[]>} - Array of absolute paths to markdown files
+ */
+async function findMarkdownFiles() {
+  const searchPatterns = ['apps/**/*.md', '*.md', 'docs/**/*.md', 'packages/**/*.md'];
+  const ignorePatterns = ['apps/docs/src/**', '**/node_modules/**', 'apps/web/src/**'];
+
+  const sourceFiles = await glob(searchPatterns, {
+    cwd: MONOREPO_ROOT,
+    ignore: ignorePatterns,
+    absolute: true,
+  });
+
+  return sourceFiles;
+}
+
+/**
+ * Defines and normalizes file paths for processing
+ * @param {string} sourcePath - Absolute path to source file
+ * @returns {Object} - Object containing sourcePath, relativePath, and destinationPath
+ */
+function defineFilePaths(sourcePath) {
+  // Get a relative path to preserve the structure
+  const relativePath = path.relative(MONOREPO_ROOT, sourcePath);
+
+  const normalizedRelativePath = normalizePathToKebabCase(relativePath);
+
+  const destinationPath = path.join(
+    CONTENT_DEST_PATH,
+    normalizedRelativePath === 'readme.md' ? 'index.md' : normalizedRelativePath
+  );
+
+  return {
+    sourcePath,
+    relativePath,
+    destinationPath,
+  };
 }
 
 /**
@@ -90,11 +134,9 @@ function processImageLinks(fileContent, filePaths) {
       const relativeImagePath = path.relative(MONOREPO_ROOT, sourceImageAbsPath);
       const normalizedImagePath = normalizePathToKebabCase(relativeImagePath);
       const destImageAbsPath = path.join(ASSETS_DEST_PATH, normalizedImagePath);
-      // const destImageUrl = path.join(ASSETS_URL_PREFIX, normalizedImagePath).replace(/\\/g, '/');
-      const destImageUrl = path
-        .relative(filePaths.destinationPath, destImageAbsPath)
-        .replace(/\\/g, '/')
-        .substring(3);
+      const destImageUrl = normalizePathSeparators(
+        path.relative(filePaths.destinationPath, destImageAbsPath).substring(3) // delete first '../'
+      );
 
       // Copy image
       fs.mkdirSync(path.dirname(destImageAbsPath), { recursive: true });
@@ -102,7 +144,6 @@ function processImageLinks(fileContent, filePaths) {
 
       // Replace a relative path on absolute
       fileContent = fileContent.replace(fullMatch, `![${altText}](${destImageUrl})`);
-      // fileContent = fileContent.replace(originalImagePath, destImageUrl);
     }
   }
 
@@ -128,24 +169,16 @@ function processDocumentLinks(fileContent, filePaths) {
     } else if (originalLinkPath.startsWith('#')) {
       normalizedLinkPath = originalLinkPath;
     } else {
-      normalizedLinkPath = normalizePathToKebabCase(originalLinkPath)
-        .replace(/\\/g, '/')
-        .replace(/\.md/, '');
-
+      normalizedLinkPath = normalizePathToKebabCaseForURL(originalLinkPath).replace(/\.md/, '');
       normalizedLinkPath = normalizePrefixForLocalLinkPath(normalizedLinkPath);
 
-      if (shouldConvertToAbsoluteLinkPath(normalizedLinkPath)) {
+      if (isLocalLinkPathInSameDirectory(normalizedLinkPath)) {
+        // convert to absolute path and add base path on site
         normalizedLinkPath =
           BASE_URL +
           '/' +
-          normalizePathToKebabCase(path.dirname(filePaths.relativePath)).replace(/\\/g, '/') +
+          normalizePathToKebabCaseForURL(path.dirname(filePaths.relativePath)) +
           normalizedLinkPath.substring(1);
-        //------------------------------
-        // const currentFolderName = normalizePathToKebabCase(
-        //   path.basename(path.dirname(filePaths.relativePath))
-        // );
-        // const fileName = normalizedLinkPath.substring(2);
-        // normalizedLinkPath = `../${currentFolderName}/${fileName}`;
       }
     }
 
@@ -189,9 +222,7 @@ function processFrontmatter(fileContent, filePaths) {
         titleParts.push(toTitleCase(fileName));
 
         if (
-          normalizePathToKebabCase(filePaths.sourcePath)
-            .replace(/\\/g, '/')
-            .includes('connectors/src/sources')
+          normalizePathToKebabCaseForURL(filePaths.sourcePath).includes('connectors/src/sources')
         ) {
           frontmatter.sidebar = { order: fileName === 'getting-started' ? 1 : 2 };
         }
@@ -207,122 +238,6 @@ function processFrontmatter(fileContent, filePaths) {
   frontmatter.template = frontmatter.template || 'doc';
 
   return matter.stringify(fileContent, frontmatter);
-}
-
-/**
- * Normalizes link path prefix based on path structure
- * @param {string} linkPath - Link path to normalize
- * @returns {string} - Normalized link path with appropriate prefix
- */
-function normalizePrefixForLocalLinkPath(linkPath) {
-  let preffix = '';
-  if (linkPath.startsWith('/')) {
-    preffix = '.';
-  } else if (linkPath.startsWith('./') || linkPath.startsWith('../')) {
-    preffix = '';
-  } else {
-    preffix = './';
-  }
-
-  return preffix + linkPath;
-}
-
-/**
- * Defines and normalizes file paths for processing
- * @param {string} sourcePath - Absolute path to source file
- * @returns {Object} - Object containing sourcePath, relativePath, and destinationPath
- */
-function defineFilePaths(sourcePath) {
-  // Get a relative path to preserve the structure
-  const relativePath = path.relative(MONOREPO_ROOT, sourcePath);
-
-  const normalizedRelativePath = normalizePathToKebabCase(relativePath);
-
-  const destinationPath = path.join(
-    CONTENT_DEST_PATH,
-    normalizedRelativePath === 'readme.md' ? 'index.md' : normalizedRelativePath
-  );
-
-  return {
-    sourcePath,
-    relativePath,
-    destinationPath,
-  };
-}
-
-/**
- * Checks if a relative path should be converted to absolute
- * @param {string} linkPath - Normalized path
- * @returns {boolean} - Whether to convert to absolute path
- */
-function shouldConvertToAbsoluteLinkPath(linkPath) {
-  return (
-    linkPath.startsWith('./') &&
-    linkPath !== './.' &&
-    linkPath !== './' &&
-    linkPath !== '.' &&
-    linkPath.split('/').length === 2
-  );
-}
-
-/**
- * Finds all markdown files in the monorepo based on search patterns
- * @returns {Promise<string[]>} - Array of absolute paths to markdown files
- */
-async function findMarkdownFiles() {
-  const searchPatterns = ['apps/**/*.md', '*.md', 'docs/**/*.md', 'packages/**/*.md'];
-  const ignorePatterns = ['apps/docs/src/**', '**/node_modules/**', 'apps/web/src/**'];
-
-  const sourceFiles = await glob(searchPatterns, {
-    cwd: MONOREPO_ROOT,
-    ignore: ignorePatterns,
-    absolute: true,
-  });
-
-  return sourceFiles;
-}
-
-/**
- * Main sync function that orchestrates the entire process
- */
-async function syncDocs() {
-  // eslint-disable-next-line no-undef
-  console.log('🔄 Starting documentation sync...');
-
-  // 1. Clear previos results and setup directories
-  prepareFileSystem();
-
-  // 2. Find all markdown files
-  const sourceFiles = await findMarkdownFiles();
-
-  // eslint-disable-next-line no-undef
-  console.log(`📄 Processing ${sourceFiles.length} files...`);
-
-  // 3. Process each file
-  for (const sourceFilePath of sourceFiles) {
-    // eslint-disable-next-line no-undef
-    console.log(`Processing: ${path.relative(MONOREPO_ROOT, sourceFilePath)}`);
-
-    // 3.1 Prepare file paths and read the content
-    const filePaths = defineFilePaths(sourceFilePath);
-    fs.mkdirSync(path.dirname(filePaths.destinationPath), { recursive: true });
-
-    let fileContent = fs.readFileSync(filePaths.sourcePath, 'utf-8');
-
-    // 3.2. Find, copy, and replace image paths
-    fileContent = processImageLinks(fileContent, filePaths);
-
-    // 3.3. Find and replace paths to other file links
-    fileContent = processDocumentLinks(fileContent, filePaths);
-
-    // 3.4. Frontmatter
-    fileContent = processFrontmatter(fileContent, filePaths);
-
-    fs.writeFileSync(filePaths.destinationPath, fileContent);
-  }
-
-  // eslint-disable-next-line no-undef
-  console.log(`✅ Documentation sync completed successfully!`);
 }
 
 // Execute the sync process
