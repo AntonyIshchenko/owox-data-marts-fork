@@ -24,4 +24,4 @@ class ConnectorRunner {
   }
 }
 
-module.exports = { ConnectorRunner, RunConfig, SourceConfig, StorageConfig };
+module.exports = { ConnectorRunner, RunConfig, SourceConfig, StorageConfig }; //comment
