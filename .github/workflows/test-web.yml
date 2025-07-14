@@ -50,11 +50,20 @@ jobs:
 
   # Build job
   build:
-    name: Run build
-    runs-on: ubuntu-latest
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     # Build starts only after the test job finishes
     needs: test
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
 
     steps:
       - name: Checkout repository
