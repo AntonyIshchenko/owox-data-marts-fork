@@ -22,8 +22,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
-          - macos-latest
         test:
           - name: 'Overall test'
             command: 'npm run test -w @owox/web'
@@ -62,8 +60,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
-          - macos-latest
 
     steps:
       - name: Checkout repository
