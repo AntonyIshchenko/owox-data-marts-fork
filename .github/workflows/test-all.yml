@@ -47,16 +47,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
-      - name: Check for sql-highlight package
-        run: |
-          echo "--- Searching for sql-highlight in root node_modules ---"
-          ls -l node_modules/sql-highlight
-          echo "--- Searching in backend node_modules ---"
-          ls -l apps/backend/node_modules/sql-highlight || echo "Not found in backend"
-
-      - name: Build all internal packages
-        run: npm run build -w owox
-
       - name: Run ${{ matrix.test.name }}
         run: ${{ matrix.test.command }}
         env:
