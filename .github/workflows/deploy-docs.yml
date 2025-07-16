@@ -17,7 +17,8 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+        # can't set --ignore-scripts because astro use postinstall
+        run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
       - name: Build
         run: npm run build:docs
