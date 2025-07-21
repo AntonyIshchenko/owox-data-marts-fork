@@ -1,0 +1,55 @@
+name: Audit Workspaces
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'package-lock.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit ${{ matrix.workspace.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - { name: '@owox/backend', path: 'apps/backend' }
+          - { name: '@owox/docs', path: 'apps/docs' }
+          - { name: 'owox', path: 'apps/owox' }
+          - { name: '@owox/web', path: 'apps/web' }
+          - { name: '@owox/connector-runner', path: 'packages/connector-runner' }
+          - { name: '@owox/connectors', path: 'packages/connectors' }
+          - { name: '@owox/ui', path: 'packages/ui' }
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 'Check for changed paths'
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            audit_needed:
+              - '${{ matrix.workspace.path }}/**'
+              - 'package-lock.json'
+
+      - name: Setup Node.js
+        if: steps.filter.outputs.audit_needed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Run Audit ${{ matrix.workspace.name }}
+        if: steps.filter.outputs.audit_needed == 'true'
+        run: npm audit -w ${{ matrix.workspace.name }}
