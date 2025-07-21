@@ -10,6 +10,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Audit job
+  audit:
+    name: Audit @owox/backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 'Check for changed paths'
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            audit_needed:
+              - 'apps/backend/**'
+              - 'package-lock.json'
+
+      - name: Setup Node.js
+        if: steps.filter.outputs.audit_needed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Run Audit @owox/backend
+        if: steps.filter.outputs.audit_needed == 'true'
+        run: npm audit -w @owox/backend
+
   # Test job
   test:
     name: ${{ matrix.test.name }} on ${{ matrix.os }}
