@@ -17,12 +17,11 @@
 
 var OpenExchangeRatesFieldsSchema = {
   'historical': {
-    overview: "Historical exchange rates data from Open Exchange Rates API",
+    overview: "Historical exchange rates data",
     description: "Contains historical exchange rates for different currencies relative to a base currency",
     documentation: "https://docs.openexchangerates.org/reference/historical-json",
-    fields: {
-      bigQuery: bigQueryHistoricalFields
-    },
-    uniqueKeys: ["date", "base", "currency"]
+    fields: historicalFields,
+    uniqueKeys: ["date", "base", "currency"],
+    destinationName: "open_exchange_rates_historical"
   }
 };

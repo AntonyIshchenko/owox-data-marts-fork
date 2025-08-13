@@ -12,8 +12,6 @@ import {
   type VisibilityState,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { DataDestinationDetailsDialog } from '../DataDestinationDetailsDialog';
-import { type DataDestinationTableItem } from './columns';
 
 import {
   Table,
@@ -35,22 +33,20 @@ interface DataDestinationTableProps<TData, TValue> {
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onRotateSecretKey?: (id: string) => void;
   onOpenTypeDialog?: () => void;
 }
 
 export function DataDestinationTable<TData, TValue>({
   columns,
   data,
-  onViewDetails,
+  onEdit,
   onOpenTypeDialog,
 }: DataDestinationTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [selectedDataDestination, setSelectedDataDestination] =
-    useState<DataDestinationTableItem | null>(null);
 
   const table = useReactTable({
     data,
@@ -72,15 +68,6 @@ export function DataDestinationTable<TData, TValue>({
     enableRowSelection: true,
   });
 
-  const handleViewDetails = (id: string) => {
-    const foundItem = data.find(
-      item => (item as { id: string }).id === id
-    ) as DataDestinationTableItem;
-    setSelectedDataDestination(foundItem);
-    setIsDetailsDialogOpen(true);
-    onViewDetails?.(id);
-  };
-
   const handleRowClick = (id: string, e: React.MouseEvent) => {
     if (
       e.target instanceof HTMLElement &&
@@ -91,7 +78,7 @@ export function DataDestinationTable<TData, TValue>({
       return;
     }
 
-    handleViewDetails(id);
+    void onEdit?.(id);
   };
 
   if (!data.length) {
@@ -104,15 +91,6 @@ export function DataDestinationTable<TData, TValue>({
 
   return (
     <div>
-      {selectedDataDestination && (
-        <DataDestinationDetailsDialog
-          isOpen={isDetailsDialogOpen}
-          onClose={() => {
-            setIsDetailsDialogOpen(false);
-          }}
-          id={selectedDataDestination.id}
-        />
-      )}
       <div className='dm-card'>
         {/* TOOLBAR */}
         <div className='dm-card-toolbar'>

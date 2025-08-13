@@ -1,23 +1,49 @@
 import { DataStorageType } from '../../../../../data-storage';
 import { Input } from '@owox/ui/components/input';
 import { TimeTriggerAnnouncement } from '../../../../../data-marts/scheduled-triggers';
+import { useEffect, useState } from 'react';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
-  target: { fullyQualifiedName: string } | null;
-  selectedNode: string;
-  onTargetChange: (target: { fullyQualifiedName: string }) => void;
+  target: { fullyQualifiedName: string; isValid: boolean } | null;
+  destinationName: string;
+  onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
 }
 
 export function TargetSetupStep({
   dataStorageType,
   target,
-  selectedNode,
+  destinationName,
   onTargetChange,
 }: TargetSetupStepProps) {
-  const getTargetName = () => {
-    return target?.fullyQualifiedName.split('.')[0] ?? '';
+  const sanitizedDestinationName = destinationName.replace(/[^a-zA-Z0-9_]/g, '_');
+
+  const [targetName, setTargetName] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTargetName(target?.fullyQualifiedName.split('.')[0] ?? '');
+  }, [target]);
+
+  const validate = (name: string): string | null => {
+    if (!name.trim()) return 'This field is required';
+    const allowed = /^[A-Za-z][A-Za-z0-9_]*$/;
+    if (!allowed.test(name)) {
+      return 'Use letters, numbers, and underscores; start with a letter';
+    }
+    return null;
   };
+
+  const handleTargetNameChange = (name: string) => {
+    setTargetName(name);
+    const validationError = validate(name);
+    setError(validationError);
+    onTargetChange({
+      fullyQualifiedName: `${name}.${sanitizedDestinationName}`.trim(),
+      isValid: validationError === null,
+    });
+  };
+
   return (
     <div className='space-y-4'>
       <h4 className='text-lg font-medium'>Setup target</h4>
@@ -34,20 +60,21 @@ export function TargetSetupStep({
               placeholder='Enter dataset name'
               autoComplete='off'
               className='box-border w-full'
-              value={getTargetName()}
+              value={targetName}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'dataset-name-error' : undefined}
               onChange={e => {
-                onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}`,
-                });
+                handleTargetNameChange(e.target.value);
               }}
+              required
             />
+            {error && <p className='text-destructive text-sm'>{error}</p>}
             <div className='text-muted-foreground mt-2 text-sm'>
-              Table name will be created automatically based on the selected node name: "
-              {selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}"
+              Table will be created automatically: "{sanitizedDestinationName}"
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
-                {getTargetName() || '[dataset]'}.{selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}
+                {targetName || '[dataset]'}.{sanitizedDestinationName}
               </span>
             </div>
           </div>
@@ -55,8 +82,8 @@ export function TargetSetupStep({
         {dataStorageType === DataStorageType.AWS_ATHENA && (
           <div className='flex flex-col gap-4'>
             <label htmlFor='dataset-name' className='text-muted-foreground text-sm'>
-              Enter database name for Amazon Athena where the connector data will be stored. The
-              database must exist before running the connector.
+              The entered Amazon Athena database will be used or created automatically if it doesn’t
+              exist
             </label>
             <Input
               type='text'
@@ -64,20 +91,21 @@ export function TargetSetupStep({
               placeholder='Enter database name'
               autoComplete='off'
               className='box-border w-full'
-              value={getTargetName()}
+              value={targetName}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'database-name-error' : undefined}
               onChange={e => {
-                onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}`,
-                });
+                handleTargetNameChange(e.target.value);
               }}
+              required
             />
+            {error && <p className='text-destructive text-sm'>{error}</p>}
             <div className='text-muted-foreground mt-2 text-sm'>
-              Table name will be created automatically based on the selected node name: "
-              {selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}"
+              Table will be created automatically: "{sanitizedDestinationName}"
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
-                {getTargetName() || '[database]'}.{selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}
+                {targetName || '[database]'}.{sanitizedDestinationName}
               </span>
             </div>
           </div>

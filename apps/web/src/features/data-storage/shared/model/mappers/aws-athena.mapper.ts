@@ -24,24 +24,30 @@ export class AwsAthenaMapper implements StorageMapper {
         secretAccessKey: credentials?.secretAccessKey ?? '',
       },
       config: {
-        databaseName: config?.databaseName ?? '',
         region: config?.region ?? '',
         outputBucket: config?.outputBucket ?? '',
       },
     };
   }
 
-  mapToUpdateRequest(formData: DataStorageFormData) {
-    return {
-      credentials: {
-        accessKeyId: (formData.credentials as AwsAthenaCredentials).accessKeyId,
-        secretAccessKey: (formData.credentials as AwsAthenaCredentials).secretAccessKey,
-      },
+  mapToUpdateRequest(formData: Partial<DataStorageFormData>) {
+    const result: {
+      credentials?: AwsAthenaCredentialsDto;
+      config: AwsAthenaConfigDto;
+    } = {
       config: {
-        databaseName: (formData.config as AwsAthenaConfigDto).databaseName,
         region: (formData.config as AwsAthenaConfigDto).region,
         outputBucket: (formData.config as AwsAthenaConfigDto).outputBucket,
       },
     };
+
+    if (formData.credentials) {
+      result.credentials = {
+        accessKeyId: (formData.credentials as AwsAthenaCredentials).accessKeyId,
+        secretAccessKey: (formData.credentials as AwsAthenaCredentials).secretAccessKey,
+      };
+    }
+
+    return result;
   }
 }

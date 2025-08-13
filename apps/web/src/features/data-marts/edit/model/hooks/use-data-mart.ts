@@ -16,11 +16,15 @@ export function useDataMart(id?: string) {
     actualizeDataMartSchema,
     publishDataMart,
     runDataMart,
+    cancelDataMartRun,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
     reset,
     dataMart,
     isLoading,
     error,
     getErrorMessage,
+    runs,
   } = useDataMartContext();
 
   useEffect(() => {
@@ -48,5 +52,9 @@ export function useDataMart(id?: string) {
     actualizeDataMartSchema,
     publishDataMart,
     runDataMart,
+    cancelDataMartRun,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
+    runs,
   };
 }

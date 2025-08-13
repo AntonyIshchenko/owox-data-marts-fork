@@ -6,6 +6,7 @@ import {
   ApiParam,
   ApiOkResponse,
   ApiNoContentResponse,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { CreateDataMartRequestApiDto } from '../../dto/presentation/create-data-mart-request-api.dto';
 import { DataMartResponseApiDto } from '../../dto/presentation/data-mart-response-api.dto';
@@ -15,6 +16,9 @@ import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-ma
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
+import { SqlDryRunRequestApiDto } from '../../dto/presentation/sql-dry-run-request-api.dto';
+import { SqlDryRunResponseApiDto } from '../../dto/presentation/sql-dry-run-response-api.dto';
+import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -112,5 +116,33 @@ export function UpdateDataMartSchemaSpec() {
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartSchemaApiDto }),
     ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function SqlDryRunSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Execute SQL dry run validation' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: SqlDryRunRequestApiDto }),
+    ApiOkResponse({ type: SqlDryRunResponseApiDto })
+  );
+}
+
+export function GetDataMartRunsSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get DataMart run history' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiQuery({ name: 'limit', description: 'Limit the number of runs to return', required: false }),
+    ApiQuery({ name: 'offset', description: 'Offset for pagination', required: false }),
+    ApiOkResponse({ type: DataMartRunsResponseApiDto })
+  );
+}
+
+export function CancelDataMartRunSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Cancel a DataMart run' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiParam({ name: 'runId', description: 'Run ID' }),
+    ApiNoContentResponse({ description: 'DataMart run cancelled' })
   );
 }

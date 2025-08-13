@@ -3,11 +3,14 @@ import { Module } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
+import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { ReportController } from './controllers/report.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
+import { ReportDataCacheService } from './services/report-data-cache.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
+import { GetDataMartRunsService } from './use-cases/get-data-mart-runs.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
 import { DataStorageService } from './services/data-storage.service';
@@ -40,6 +43,7 @@ import { dataStorageFacadesProviders } from './data-storage-types/data-storage-f
 import { dataStorageResolverProviders } from './data-storage-types/data-storage-providers';
 import { dataDestinationFacadesProviders } from './data-destination-types/data-destination-facades';
 import { dataDestinationResolverProviders } from './data-destination-types/data-destination-providers';
+import { DataDestinationSecretKeyRotatorFacade } from './data-destination-types/facades/data-destination-secret-key-rotator.facade';
 import { scheduledTriggerProviders } from './scheduled-trigger-types/scheduled-trigger-providers';
 import { scheduledTriggerFacadesProviders } from './scheduled-trigger-types/scheduled-trigger-facades';
 import { UpdateDataMartDefinitionService } from './use-cases/update-data-mart-definition.service';
@@ -52,6 +56,7 @@ import { ListDataStoragesService } from './use-cases/list-data-storages.service'
 import { ListDataDestinationsService } from './use-cases/list-data-destinations.service';
 import { DeleteDataStorageService } from './use-cases/delete-data-storage.service';
 import { DeleteDataDestinationService } from './use-cases/delete-data-destination.service';
+import { RotateSecretKeyService } from './use-cases/rotate-secret-key.service';
 import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
 import { Report } from './entities/report.entity';
@@ -63,14 +68,21 @@ import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
+import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from './use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema.service';
+import { SqlDryRunService } from './use-cases/sql-dry-run.service';
 import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
 import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
+import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
+import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
+import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
+import { ConnectorState } from './entities/connector-state.entity';
+import { ReportDataCache } from './entities/report-data-cache.entity';
 
 @Module({
   imports: [
@@ -81,6 +93,8 @@ import { ReportService } from './services/report.service';
       Report,
       DataMartRun,
       DataMartScheduledTrigger,
+      ConnectorState,
+      ReportDataCache,
     ]),
     SchedulerModule,
   ],
@@ -91,6 +105,7 @@ import { ReportService } from './services/report.service';
     ReportController,
     ConnectorController,
     ScheduledTriggerController,
+    LookerStudioConnectorController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -103,6 +118,7 @@ import { ReportService } from './services/report.service';
     CreateDataMartService,
     ListDataMartsService,
     GetDataMartService,
+    GetDataMartRunsService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
     UpdateDataMartDescriptionService,
@@ -118,6 +134,8 @@ import { ReportService } from './services/report.service';
     ListDataDestinationsService,
     DeleteDataStorageService,
     DeleteDataDestinationService,
+    RotateSecretKeyService,
+    DataDestinationSecretKeyRotatorFacade,
     DeleteDataMartService,
     GetDataStorageService,
     GetDataDestinationService,
@@ -140,6 +158,8 @@ import { ReportService } from './services/report.service';
     SpecificationConnectorService,
     FieldsConnectorService,
     RunDataMartService,
+    CancelDataMartRunService,
+    SqlDryRunService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
@@ -151,6 +171,10 @@ import { ReportService } from './services/report.service';
     UpdateScheduledTriggerService,
     DeleteScheduledTriggerService,
     ReportService,
+    ReportDataCacheService,
+    ConnectorOutputCaptureService,
+    ConnectorMessageParserService,
+    ConnectorStateService,
   ],
 })
 export class DataMartsModule {}

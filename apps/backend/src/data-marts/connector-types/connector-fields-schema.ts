@@ -6,6 +6,8 @@ export const ConnectorFieldsSchema = z.array(
     overview: z.string().optional(),
     description: z.string().optional(),
     documentation: z.string().optional(),
+    uniqueKeys: z.array(z.string()).optional(),
+    destinationName: z.string().optional(),
     fields: z
       .array(
         z.object({

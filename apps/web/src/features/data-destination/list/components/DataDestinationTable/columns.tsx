@@ -1,7 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader } from './SortableHeader';
-import { DataDestinationTypeModel } from '../../../shared';
-import { Badge } from '@owox/ui/components/badge';
+import { type DataDestination, DataDestinationTypeModel } from '../../../shared';
 import { DataDestinationType } from '../../../shared';
 import { DataDestinationActionsCell } from './DataDestinationActionsCell';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
@@ -12,18 +11,19 @@ export interface DataDestinationTableItem {
   type: DataDestinationType;
   createdAt: Date;
   modifiedAt: Date;
+  credentials?: DataDestination['credentials'];
 }
 
 interface DataDestinationColumnsProps {
-  onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onRotateSecretKey?: (id: string) => void;
 }
 
 export const getDataDestinationColumns = ({
-  onViewDetails,
   onEdit,
   onDelete,
+  onRotateSecretKey,
 }: DataDestinationColumnsProps = {}): ColumnDef<DataDestinationTableItem>[] => [
   {
     accessorKey: 'title',
@@ -43,10 +43,10 @@ export const getDataDestinationColumns = ({
       const { displayName, icon: Icon } = DataDestinationTypeModel.getInfo(type);
 
       return (
-        <Badge variant={'secondary'} className='flex items-center gap-2'>
-          <Icon />
+        <div className='text-muted-foreground flex items-center gap-2'>
+          <Icon size={18} />
           {displayName}
-        </Badge>
+        </div>
       );
     },
   },
@@ -63,7 +63,7 @@ export const getDataDestinationColumns = ({
         day: 'numeric',
       }).format(date);
 
-      return <div>{formatted}</div>;
+      return <div className='text-muted-foreground'>{formatted}</div>;
     },
   },
   {
@@ -73,9 +73,11 @@ export const getDataDestinationColumns = ({
     cell: ({ row }) => (
       <DataDestinationActionsCell
         id={row.original.id}
-        onViewDetails={onViewDetails}
+        type={row.original.type}
+        credentials={row.original.credentials}
         onEdit={onEdit}
         onDelete={onDelete}
+        onRotateSecretKey={onRotateSecretKey}
       />
     ),
   },

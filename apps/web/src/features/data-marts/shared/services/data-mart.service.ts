@@ -7,7 +7,10 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartSchemaRequestDto,
+  SqlValidationResponseDto,
+  SqlValidationRequestDto,
 } from '../types/api';
+import type { DataMartRun, DataMartRunItem } from '../../edit/model/types/data-mart-run';
 
 /**
  * Data Mart Service
@@ -113,10 +116,23 @@ export class DataMartService extends ApiService {
   /**
    * Run a data mart
    * @param id Data mart ID
+   * @param payload Payload for the manual run. If not provided, the data mart will be run with the default payload.
+   * The payload is specific to the data mart definition type.
+   * For example, for a connector data mart, the payload is the connector configuration fields with unknown structure.
    * @returns Promise with updated data mart
    */
-  async runDataMart(id: string): Promise<DataMartResponseDto> {
-    return this.post<DataMartResponseDto>(`/${id}/manual-run`);
+  async runDataMart(id: string, payload: Record<string, unknown>): Promise<DataMartResponseDto> {
+    return this.post<DataMartResponseDto>(`/${id}/manual-run`, { payload: payload });
+  }
+
+  /**
+   * Cancel a data mart run
+   * @param id Data mart ID
+   * @param runId Run ID
+   * @returns Promise<void>
+   */
+  async cancelDataMartRun(id: string, runId: string): Promise<void> {
+    await this.post(`/${id}/runs/${runId}/cancel`);
   }
 
   /**
@@ -139,6 +155,40 @@ export class DataMartService extends ApiService {
     data: UpdateDataMartSchemaRequestDto
   ): Promise<DataMartResponseDto> {
     return this.put<DataMartResponseDto>(`/${id}/schema`, data);
+  }
+
+  /**
+   * Validate SQL query
+   * @param id Data mart ID
+   * @param sql SQL query to validate
+   * @param abortController Optional AbortController to cancel the request
+   * @param skipLoading Optional flag to skip global loading indicator
+   * @returns Promise with validation result
+   */
+  async validateSql(
+    id: string,
+    sql: string,
+    abortController?: AbortController,
+    skipLoading = true
+  ): Promise<SqlValidationResponseDto> {
+    const data: SqlValidationRequestDto = { sql };
+    const config = {
+      ...(abortController ? { signal: abortController.signal } : {}),
+      skipLoadingIndicator: skipLoading,
+    };
+    return this.post<SqlValidationResponseDto>(`/${id}/sql-dry-run`, data, config);
+  }
+
+  /**
+   * Get run history for a data mart
+   * @param id Data mart ID
+   * @param limit Number of runs to fetch (default: 5)
+   * @param offset Number of runs to skip (default: 0)
+   * @returns Promise with run history
+   */
+  async getDataMartRuns(id: string, limit = 5, offset = 0): Promise<DataMartRunItem[]> {
+    const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset });
+    return response.runs;
   }
 }
 

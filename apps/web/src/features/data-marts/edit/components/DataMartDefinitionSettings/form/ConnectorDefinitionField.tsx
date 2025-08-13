@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { useFormContext, type Control } from 'react-hook-form';
+import toast from 'react-hot-toast';
 import { type DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
 import { FormControl, FormField, FormItem, FormMessage } from '@owox/ui/components/form';
+import { Button } from '@owox/ui/components/button';
+import { Edit3, Play } from 'lucide-react';
 import { DataStorageType } from '../../../../../data-storage';
 import {
   type ConnectorDefinitionConfig,
@@ -10,8 +14,7 @@ import {
 } from '../../../model/types/connector-definition-config';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../model/context/types';
-import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
-import { DataMartDefinitionType } from '../../../../shared/enums/data-mart-definition-type.enum';
+import { DataMartStatus, DataMartDefinitionType } from '../../../../shared/enums';
 import { getEmptyDefinition } from '../../../utils/definition-helpers';
 import {
   ConnectorSetupButton,
@@ -20,6 +23,10 @@ import {
   isConnectorDefinition,
   isConnectorConfigured,
 } from '../../../../../connectors/edit/components/ConnectorDefinitionField';
+import { ConnectorEditSheet } from '../../../../../connectors/edit/components/ConnectorEditSheet/ConnectorEditSheet';
+import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
+import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
+import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
@@ -27,8 +34,9 @@ interface ConnectorDefinitionFieldProps {
 }
 
 export function ConnectorDefinitionField({ control, storageType }: ConnectorDefinitionFieldProps) {
-  const { dataMart } = useOutletContext<DataMartContextType>();
+  const { dataMart, runDataMart } = useOutletContext<DataMartContextType>();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
+  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
 
   const triggerValidation = () => {
     setTimeout(() => void trigger('definition'), 0);
@@ -51,6 +59,19 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
     triggerValidation();
   };
 
+  const handleManualRun = async (payload: Record<string, unknown>) => {
+    if (!dataMart) return;
+    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
+      toast.error('Manual run is only available for published data marts');
+      return;
+    }
+    await runDataMart({
+      id: dataMart.id,
+      payload,
+    });
+    toast.success('Manual run triggered successfully');
+  };
+
   const updateConnectorConfiguration = (configIndex: number) => (connector: ConnectorConfig) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
@@ -71,6 +92,47 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
       setValue('definition', updatedDefinition, { shouldDirty: true, shouldTouch: true });
       triggerValidation();
     }
+  };
+
+  const updateConnectorFields = (connector: ConnectorConfig) => {
+    const currentValues = getValues();
+    const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
+
+    if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
+      const updatedDefinition: ConnectorDefinitionConfig = {
+        connector: {
+          ...currentDefinition.connector,
+          source: {
+            ...currentDefinition.connector.source,
+            fields: connector.source.fields,
+          },
+        },
+      };
+      setValue('definition', updatedDefinition, { shouldDirty: true, shouldTouch: true });
+      triggerValidation();
+    }
+    setIsEditSheetOpen(false);
+  };
+
+  const onManualRunHandler: (data: ConnectorRunFormData) => void = data => {
+    void handleManualRun({ runType: data.runType, data: data.data });
+  };
+
+  const renderEditFieldsButton = (connectorDef: ConnectorDefinitionConfig) => {
+    const fieldsCount = connectorDef.connector.source.fields.length;
+    return (
+      <Button
+        type='button'
+        variant='outline'
+        onClick={() => {
+          setIsEditSheetOpen(true);
+        }}
+        className='dm-card-table-add-field-btn cursor-pointer'
+      >
+        <Edit3 className='h-4 w-4' />
+        <span>Edit Fields ({String(fieldsCount)})</span>
+      </Button>
+    );
   };
 
   const removeConfiguration = (configIndex: number) => {
@@ -133,64 +195,116 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
   };
 
   return (
-    <FormField
-      control={control}
-      name='definition'
-      render={({ field }) => (
-        <FormItem className='space-y-0'>
-          <FormControl>
-            <div className='space-y-4'>
-              {!isConnectorConfigured(field.value as ConnectorDefinitionConfig) ||
-              datamartStatus === DataMartStatus.DRAFT ? (
-                <ConnectorSetupButton storageType={storageType} onSetupConnector={setupConnector} />
-              ) : (
-                <div className='space-y-4'>
-                  <div className='text-muted-foreground text-sm font-medium'>Input Source</div>
+    <>
+      <FormField
+        control={control}
+        name='definition'
+        render={({ field }) => (
+          <FormItem>
+            <FormControl>
+              <div className='space-y-3'>
+                {!isConnectorConfigured(field.value as ConnectorDefinitionConfig) ||
+                datamartStatus === DataMartStatus.DRAFT ? (
+                  <ConnectorSetupButton
+                    storageType={storageType}
+                    onSetupConnector={setupConnector}
+                  />
+                ) : (
                   <div className='space-y-3'>
-                    {isConnectorConfigured(field.value as ConnectorDefinitionConfig)
-                      ? (
-                          field.value as ConnectorDefinitionConfig
-                        ).connector.source.configuration.map(
-                          (_: Record<string, unknown>, configIndex: number) => {
-                            const connectorDef = field.value as ConnectorDefinitionConfig;
-                            return (
-                              <ConnectorConfigurationItem
-                                key={configIndex}
-                                configIndex={configIndex}
-                                connectorDef={connectorDef}
-                                storageType={storageType}
-                                onRemoveConfiguration={removeConfiguration}
-                                onUpdateConfiguration={updateConnectorConfiguration}
-                                dataMartStatus={datamartStatus.code}
-                                totalConfigurations={
-                                  connectorDef.connector.source.configuration.length
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <AddConfigurationButton
+                          storageType={storageType}
+                          onAddConfiguration={addConfiguration}
+                          existingConnector={
+                            isConnectorConfigured(field.value as ConnectorDefinitionConfig)
+                              ? {
+                                  source: (field.value as ConnectorDefinitionConfig).connector
+                                    .source,
+                                  storage: (field.value as ConnectorDefinitionConfig).connector
+                                    .storage,
                                 }
-                              />
-                            );
+                              : undefined
                           }
-                        )
-                      : null}
-
-                    <AddConfigurationButton
-                      storageType={storageType}
-                      onAddConfiguration={addConfiguration}
-                      existingConnector={
-                        isConnectorConfigured(field.value as ConnectorDefinitionConfig)
-                          ? {
-                              source: (field.value as ConnectorDefinitionConfig).connector.source,
-                              storage: (field.value as ConnectorDefinitionConfig).connector.storage,
+                        />
+                        {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
+                          renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        {dataMart &&
+                          dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
+                            <ConnectorRunView
+                              configuration={dataMart.definition as ConnectorDefinitionConfig}
+                              onManualRun={onManualRunHandler}
+                            >
+                              <Button variant='outline'>
+                                <Play className='h-4 w-4' />
+                                <span>Manual Run...</span>
+                              </Button>
+                            </ConnectorRunView>
+                          )}
+                      </div>
+                    </div>
+                    <div className='space-y-3'>
+                      {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
+                      dataMart?.storage
+                        ? (
+                            field.value as ConnectorDefinitionConfig
+                          ).connector.source.configuration.map(
+                            (_: Record<string, unknown>, configIndex: number) => {
+                              const connectorDef = field.value as ConnectorDefinitionConfig;
+                              return (
+                                <ConnectorContextProvider key={configIndex}>
+                                  <ConnectorConfigurationItem
+                                    key={configIndex}
+                                    configIndex={configIndex}
+                                    connectorDef={connectorDef}
+                                    dataStorage={dataMart.storage}
+                                    onRemoveConfiguration={removeConfiguration}
+                                    onUpdateConfiguration={updateConnectorConfiguration}
+                                    dataMartStatus={
+                                      typeof datamartStatus === 'object'
+                                        ? datamartStatus.code
+                                        : datamartStatus
+                                    }
+                                    totalConfigurations={
+                                      connectorDef.connector.source.configuration.length
+                                    }
+                                  />
+                                </ConnectorContextProvider>
+                              );
                             }
-                          : undefined
-                      }
-                    />
+                          )
+                        : null}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+                )}
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <ConnectorContextProvider>
+        <ConnectorEditSheet
+          isOpen={isEditSheetOpen}
+          onClose={() => {
+            setIsEditSheetOpen(false);
+          }}
+          onSubmit={updateConnectorFields}
+          dataStorageType={storageType}
+          existingConnector={
+            isConnectorConfigured(getValues().definition as ConnectorDefinitionConfig)
+              ? {
+                  source: (getValues().definition as ConnectorDefinitionConfig).connector.source,
+                  storage: (getValues().definition as ConnectorDefinitionConfig).connector.storage,
+                }
+              : undefined
+          }
+          mode='fields-only'
+        />
+      </ConnectorContextProvider>
+    </>
   );
 }

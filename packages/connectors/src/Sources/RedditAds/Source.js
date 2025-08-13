@@ -11,51 +11,78 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
       ClientId: {
         isRequired: true,
         requiredType: "string",
+        label: "Client ID",
+        description: "Reddit Ads API Client ID"
       },
       ClientSecret: {
         isRequired: true,
         requiredType: "string",
+        label: "Client Secret",
+        description: "Reddit Ads API Client Secret"
       },
       RedirectUri: {
         isRequired: true,
         requiredType: "string",
+        label: "Redirect URI",
+        description: "Reddit Ads API Redirect URI for OAuth"
       },
       RefreshToken: {
         isRequired: true,
         requiredType: "string",
+        label: "Refresh Token",
+        description: "Reddit Ads API Refresh Token"
       },
       UserAgent: {
         isRequired: true,
         requiredType: "string",
+        label: "User Agent",
+        description: "User Agent string for Reddit API requests"
       },
       AccessToken: {
         requiredType: "string",
+        label: "Access Token",
+        description: "Reddit Ads API Access Token (auto-generated)"
       },
       AccountIDs: {
         isRequired: true,
+        label: "Account IDs",
+        description: "Reddit Ads Account IDs to fetch data from"
       },
       StartDate: {
         requiredType: "date",
-        isRequired: true,
+        label: "Start Date",
+        description: "Start date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
       },
       EndDate: {
         requiredType: "date",
+        label: "End Date",
+        description: "End date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       Fields: {
         isRequired: true,
+        label: "Fields",
+        description: "List of fields to fetch from Reddit API"
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
         default: 2,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
+        label: "Clean Up To Keep Window",
+        description: "Number of days to keep data before cleaning up"
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
         default: 31,
+        label: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
       }
     }));
 
@@ -581,10 +608,10 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
 
   /**
    * Keep only requestedFields plus any schema-required keys.
-   * @param {Array<Object>} items
+   * @param {Array<Object>|Object} items - Array of objects or single object
    * @param {string} nodeName
    * @param {Array<string>} requestedFields
-   * @returns {Array<Object>}
+   * @returns {Array<Object>|Object} - Returns same format as input (array or single object)
    */
   _filterBySchema(items, nodeName, requestedFields = []) {
     const schema = this.fieldsSchema[nodeName];
@@ -595,14 +622,26 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     const requiredFields = new Set(schema.uniqueKeys || []);
     const keepFields = new Set([...requiredFields, ...requestedFields]);
 
-    return items.map(item => {
-      const result = {};
-      for (const key of Object.keys(item)) {
-        if (keepFields.has(key)) {
-          result[key] = item[key];
-        }
+    if (Array.isArray(items)) {
+      return items.map(item => this._filterSingleItem(item, keepFields));
+    } else {
+      return this._filterSingleItem(items, keepFields);
+    }
+  }
+
+  /**
+   * Filters a single item by keeping only specified fields
+   * @param {Object} item - Single item to filter
+   * @param {Set<string>} keepFields - Set of field names to keep
+   * @returns {Object} - Filtered item
+   */
+  _filterSingleItem(item, keepFields) {
+    const result = {};
+    for (const key of Object.keys(item)) {
+      if (keepFields.has(key)) {
+        result[key] = item[key];
       }
-      return result;
-    });
+    }
+    return result;
   }
 };

@@ -1,6 +1,6 @@
 {
   "name": "@owox/connector-runner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Runners for OWOX Data Marts integration connectors",
   "author": "OWOX",
   "license": "ELv2",
@@ -30,15 +30,16 @@
     "test": "npm run build:connectors && jest",
     "test:watch": "npm run build:connectors && jest --watch",
     "test:coverage": "npm run build:connectors && jest --coverage",
-    "prepublishOnly": "npm audit && npm run lint"
+    "prepublishOnly": "npm run lint"
   },
   "dependencies": {
-    "@owox/connectors": "0.3.0",
+    "@owox/connectors": "0.4.0",
+    "cross-spawn": "^7.0.6",
     "env-paths": "^3.0.0"
   },
   "devDependencies": {
-    "jest": "^30.0.0",
-    "jest-environment-node": "^30.0.0",
+    "jest": "^30.0.1",
+    "jest-environment-node": "^30.0.1",
     "mock-fs": "^5.5.0",
     "sinon": "^21.0.0"
   }

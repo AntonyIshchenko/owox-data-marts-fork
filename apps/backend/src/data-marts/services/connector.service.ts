@@ -8,14 +8,15 @@ import { ConnectorSpecification } from '../connector-types/connector-specificati
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 
 interface ConnectorConfigField {
-  displayName: string;
   description: string;
+  label: string;
   default: unknown;
   requiredType: string;
   isRequired: boolean;
   options?: unknown[];
   placeholder?: string;
   showInUI?: boolean;
+  attributes?: Core.CONFIG_ATTRIBUTES[];
 }
 
 interface ConnectorConfig {
@@ -31,6 +32,8 @@ interface SourceFieldsGroup {
   overview: string;
   description: string;
   documentation: string;
+  uniqueKeys: string[];
+  destinationName: string;
   fields: Record<string, SourceFieldDefinition>;
 }
 
@@ -46,12 +49,16 @@ export class ConnectorService {
    * Get all available connectors
    */
   async getAvailableConnectors(): Promise<ConnectorDefinition[]> {
-    return AvailableConnectors.map(connector => ({
-      name: connector,
-      title: connector,
-      description: null,
-      icon: null,
-    }));
+    return AvailableConnectors.map(connector => {
+      const manifest = this.getConnectorManifest(connector);
+      return {
+        name: connector,
+        title: manifest.title,
+        description: manifest.description,
+        logo: manifest.logo,
+        docUrl: manifest.docUrl,
+      };
+    });
   }
 
   /**
@@ -87,8 +94,6 @@ export class ConnectorService {
     return ConnectorFieldsSchema.parse(fieldsSchema);
   }
 
-  // Private helper methods
-
   private validateConnectorExists(connectorName: string): void {
     if (Object.keys(Connectors).length === 0) {
       throw new Error('No connectors found');
@@ -104,10 +109,15 @@ export class ConnectorService {
     return new source(new Core.AbstractConfig({}));
   }
 
+  private getConnectorManifest(connectorName: string) {
+    const manifest = Connectors[connectorName].manifest;
+    return manifest;
+  }
+
   private mapConfigToSchema(config: ConnectorConfig) {
     return Object.keys(config).map(key => ({
       name: key,
-      title: config[key].displayName,
+      title: config[key].label,
       description: config[key].description,
       default: config[key].default,
       requiredType: config[key].requiredType,
@@ -115,6 +125,7 @@ export class ConnectorService {
       options: config[key].options,
       placeholder: config[key].placeholder,
       showInUI: config[key].showInUI,
+      attributes: config[key].attributes,
     }));
   }
 
@@ -124,6 +135,8 @@ export class ConnectorService {
       overview: sourceFieldsSchema[key].overview,
       description: sourceFieldsSchema[key].description,
       documentation: sourceFieldsSchema[key].documentation,
+      uniqueKeys: sourceFieldsSchema[key].uniqueKeys,
+      destinationName: sourceFieldsSchema[key].destinationName,
       fields: Object.keys(sourceFieldsSchema[key].fields).map(fieldKey => ({
         name: fieldKey,
         type: sourceFieldsSchema[key].fields[fieldKey].type,

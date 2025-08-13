@@ -40,18 +40,40 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         { label: 'Intro', link: '/' },
         {
           label: 'Getting started',
-          items: ['docs/getting-started/quick-start', 'docs/getting-started/editions'],
-        },
-        {
-          label: 'Connectors',
           items: [
+            'docs/getting-started/quick-start',
+            'docs/getting-started/core-concepts',
             {
-              label: 'Sources',
-              autogenerate: { directory: 'packages/connectors/src/sources' },
+              label: 'Editions',
+              items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition'],
             },
             {
-              label: 'Storages',
-              autogenerate: { directory: 'packages/connectors/src/storages' },
+              label: 'Setup Guide',
+              autogenerate: { directory: 'docs/getting-started/setup-guide' },
+            },
+          ],
+        },
+        {
+          label: 'Sources',
+          autogenerate: { directory: 'packages/connectors/src/sources' },
+        },
+        {
+          label: 'Storages',
+          items: [
+            'docs/storages/manage-storages',
+            {
+              label: 'Supported Storages',
+              autogenerate: { directory: 'docs/storages/supported-storages' },
+            },
+          ],
+        },
+        {
+          label: 'Destinations',
+          items: [
+            'docs/destinations/manage-destinations',
+            {
+              label: 'Supported Destinations',
+              autogenerate: { directory: 'docs/destinations/supported-destinations' },
             },
           ],
         },
@@ -86,6 +108,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               collapsed: true,
             },
             { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
+            'docs/changelog',
           ],
         },
       ],

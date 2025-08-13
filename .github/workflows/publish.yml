@@ -13,17 +13,88 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required for changesets to work properly
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase repository name
+        id: repo_lower
+        run: |
+          echo "repo_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
           registry-url: https://registry.npmjs.org
-      # can't set --ignore-scripts because astro use postinstall
+
+      # can't set --ignore-scripts because Astro uses postinstall
       - run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
+
       - run: npm run build
 
       - name: Publish to "latest"
         run: |
           npx changeset publish --access public
+
+      - name: Extract "latest" version
+        id: extract_latest_version
+        run: |
+          VERSION=$(npm pkg get version -w apps/owox | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' | tr -d '"')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+      - name: Check if npm package with this "latest" version exists
+        run: |
+          for i in {1..30}; do
+            if npm view owox@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ owox@${{ steps.extract_latest_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for owox@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+          for i in {1..30}; do
+            if npm view @owox/backend@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/backend@${{ steps.extract_latest_version.outputs.version }} exists on npm"
+              exit 0
+            fi
+            echo "Waiting for @owox/backend@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+          echo "❌ @owox/backend@${{ steps.extract_latest_version.outputs.version }} did not appear on npm after 5 minutes"
+          exit 1
+
+      - name: Check if container image with this "latest" version exists
+        id: latest_image_exists
+        run: |
+          if docker manifest inspect ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+          cat $GITHUB_OUTPUT
+
+      - name: Build and push "latest" container image
+        if: steps.latest_image_exists.outputs.exists == 'false'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            version=${{ steps.extract_latest_version.outputs.version }}
+          tags: |
+            ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_latest_version.outputs.version }}
+            ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:latest
 
       - name: Create dummy changeset
         run: |
@@ -38,3 +109,43 @@ jobs:
         run: |
           npx changeset version --snapshot next
           npx changeset publish --no-git-tag --snapshot --tag next
+
+      - name: Extract "next" version
+        id: extract_next_version
+        run: |
+          VERSION=$(npm pkg get version -w apps/owox | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+-next-[0-9]+"' | tr -d '"')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+      - name: Check if npm package with this "next" version exists
+        run: |
+          for i in {1..30}; do
+            if npm view owox@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ owox@${{ steps.extract_next_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for owox@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+          for i in {1..30}; do
+            if npm view @owox/backend@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/backend@${{ steps.extract_next_version.outputs.version }} exists on npm"
+              exit 0
+            fi
+            echo "Waiting for @owox/backend@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+          echo "❌ @owox/backend@${{ steps.extract_next_version.outputs.version }} did not appear on npm after 5 minutes"
+          exit 1
+
+      - name: Build and push "next" container image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            version=${{ steps.extract_next_version.outputs.version }}
+          tags: |
+            ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_next_version.outputs.version }}
+            ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:next

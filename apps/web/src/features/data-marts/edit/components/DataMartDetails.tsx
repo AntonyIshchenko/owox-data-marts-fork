@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
@@ -16,6 +17,7 @@ import { Button } from '../../../../shared/components/Button';
 import { DataMartDefinitionType, DataMartStatus, getValidationErrorMessages } from '../../shared';
 import { toast } from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
 
 interface DataMartDetailsProps {
   id: string;
@@ -34,9 +36,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     updateDataMartSchema,
     publishDataMart,
     runDataMart,
+    cancelDataMartRun,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
     isLoading,
     error,
     getErrorMessage,
+    runs,
   } = useDataMart(id);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -47,6 +53,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Data Setup', path: 'data-setup' },
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
+    { name: 'Run History', path: 'run-history' },
   ];
 
   const handleTitleUpdate = async (newTitle: string) => {
@@ -68,9 +75,17 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
   };
 
-  const handleManualRun = async () => {
+  const handleManualRun = async (payload: Record<string, unknown>) => {
     if (!dataMart) return;
-    await runDataMart(dataMart.id);
+    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
+      toast.error('Manual run is only available for published data marts');
+      return;
+    }
+    await runDataMart({
+      id: dataMart.id,
+      payload,
+    });
+    toast.success('Manual run triggered successfully');
   };
 
   if (isLoading) {
@@ -160,23 +175,34 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className='rounded p-1 hover:bg-gray-100'>
+              <Button variant='ghost'>
                 <MoreVertical className='h-5 w-5' />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              {dataMart.status.code === DataMartStatus.PUBLISHED &&
-                dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
-                  <DropdownMenuItem
-                    className='text-blue-600'
-                    onClick={() => {
-                      void handleManualRun();
+              {dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
+                <>
+                  <ConnectorRunView
+                    configuration={dataMart.definition ?? null}
+                    onManualRun={data => {
+                      void handleManualRun({
+                        runType: data.runType,
+                        data: data.data,
+                      });
                     }}
                   >
-                    <Play className='mr-2 h-4 w-4' />
-                    Manual Run
-                  </DropdownMenuItem>
-                )}
+                    <DropdownMenuItem
+                      onClick={e => {
+                        e.preventDefault();
+                      }}
+                    >
+                      <Play className='mr-2 h-4 w-4' />
+                      <span>Manual Run...</span>
+                    </DropdownMenuItem>
+                  </ConnectorRunView>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 className='text-red-600'
                 onClick={() => {
@@ -225,6 +251,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             updateDataMartDefinition,
             actualizeDataMartSchema,
             updateDataMartSchema,
+            runDataMart,
+            cancelDataMartRun: cancelDataMartRun as (id: string, runId: string) => Promise<void>,
+            getDataMartRuns,
+            loadMoreDataMartRuns,
+            runs,
           }}
         />
       </div>

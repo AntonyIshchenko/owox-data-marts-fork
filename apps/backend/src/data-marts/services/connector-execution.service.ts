@@ -2,7 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { ConnectorRunner, RunConfig, StorageConfig, SourceConfig } from '@owox/connector-runner';
+import {
+  ConnectorRunner,
+  Config,
+  StorageConfig,
+  SourceConfig,
+  RunConfig,
+} from '@owox/connector-runner';
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -14,21 +20,19 @@ import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-
 import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
 import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
+import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
+import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
+import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
+import { ConnectorOutputState } from '../connector-types/interfaces/connector-output-state';
+import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { DataMartService } from './data-mart.service';
-
-interface LogCaptureConfig {
-  logCapture: {
-    onStdout: (message: string) => void;
-    onStderr: (message: string) => void;
-    passThrough: boolean;
-  };
-}
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
   success: boolean;
-  logs: string[];
-  errors: string[];
+  logs: ConnectorMessage[];
+  errors: ConnectorMessage[];
 }
 
 @Injectable()
@@ -38,18 +42,51 @@ export class ConnectorExecutionService {
   constructor(
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
+    private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
+    private readonly connectorStateService: ConnectorStateService,
     private readonly dataMartService: DataMartService
   ) {}
+
+  async cancelRun(dataMartId: string, runId: string): Promise<void> {
+    const run = await this.dataMartRunRepository.findOne({
+      where: {
+        id: runId,
+        dataMartId,
+      },
+    });
+
+    if (!run) {
+      throw new Error('Data mart run not found');
+    }
+
+    if (run.status === DataMartRunStatus.SUCCESS || run.status === DataMartRunStatus.FAILED) {
+      throw new Error('Cannot cancel completed data mart run');
+    }
+
+    if (run.status === DataMartRunStatus.CANCELLED) {
+      throw new Error('Data mart run is already cancelled');
+    }
+
+    if (run.status === DataMartRunStatus.RUNNING) {
+      await this.dataMartRunRepository.update(runId, {
+        status: DataMartRunStatus.CANCELLED,
+      });
+    }
+  }
 
   /**
    * Start a connector run
    */
-  async run(dataMart: DataMart): Promise<string> {
+  async run(dataMart: DataMart, payload?: Record<string, unknown>): Promise<string> {
     this.validateDataMartForConnector(dataMart);
+    const isRunning = await this.checkDataMartIsRunning(dataMart);
+    if (isRunning) {
+      throw new Error('DataMart is already running');
+    }
 
-    const dataMartRun = await this.createDataMartRun(dataMart);
+    const dataMartRun = await this.createDataMartRun(dataMart, payload);
 
-    this.executeInBackground(dataMart, dataMartRun.id).catch(error => {
+    this.executeInBackground(dataMart, dataMartRun.id, payload).catch(error => {
       this.logger.error(`Background execution failed for run ${dataMartRun.id}:`, error);
     });
 
@@ -69,66 +106,96 @@ export class ConnectorExecutionService {
   /**
    * Get all runs for a specific DataMart
    */
-  async getDataMartRuns(dataMartId: string): Promise<DataMartRun[]> {
+  async getDataMartRuns(
+    dataMartId: string,
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { dataMartId },
       order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
     });
   }
-
-  // Private helper methods
 
   private validateDataMartForConnector(dataMart: DataMart): void {
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
       throw new Error('DataMart is not a connector type');
     }
+
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      throw new Error('DataMart is not published');
+    }
   }
 
-  private async createDataMartRun(dataMart: DataMart): Promise<DataMartRun> {
+  private async checkDataMartIsRunning(dataMart: DataMart): Promise<boolean> {
+    const dataMartRun = await this.dataMartRunRepository.findOne({
+      where: { dataMartId: dataMart.id, status: DataMartRunStatus.RUNNING },
+    });
+
+    return !!dataMartRun;
+  }
+
+  private async createDataMartRun(
+    dataMart: DataMart,
+    payload?: Record<string, unknown>
+  ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
       definitionRun: dataMart.definition,
-      status: DataMartRunStatus.RUNNING,
+      status: DataMartRunStatus.PENDING,
       logs: [],
       errors: [],
+      additionalParams: payload ? { payload: payload } : undefined,
     });
 
     return this.dataMartRunRepository.save(dataMartRun);
   }
 
-  private createLogCaptureConfig(
-    dataMartId: string,
-    capturedErrors: string[],
-    capturedLogs: string[]
-  ): LogCaptureConfig {
-    return {
-      logCapture: {
-        onStdout: (message: string) => {
-          const logMessage = message.trim();
-          capturedLogs.push(logMessage);
-          this.logger.log(`[${dataMartId}]: ${logMessage}`);
-        },
-        onStderr: (message: string) => {
-          const errorMessage = message.trim();
-          capturedErrors.push(errorMessage);
-          this.logger.error(`[${dataMartId}]: ${errorMessage}`);
-        },
-        passThrough: false,
-      },
-    };
-  }
-
-  private async executeInBackground(dataMart: DataMart, runId: string): Promise<void> {
-    const capturedLogs: string[] = [];
-    const capturedErrors: string[] = [];
-    const logCaptureConfig = this.createLogCaptureConfig(dataMart.id, capturedErrors, capturedLogs);
+  private async executeInBackground(
+    dataMart: DataMart,
+    runId: string,
+    payload?: Record<string, unknown>
+  ): Promise<void> {
+    const state: ConnectorOutputState = { state: {}, at: '' };
+    const capturedLogs: ConnectorMessage[] = [];
+    const capturedErrors: ConnectorMessage[] = [];
 
     try {
-      await this.runConnectorConfigurations(runId, dataMart, logCaptureConfig);
-      await this.updateRunStatus(runId, capturedLogs, capturedErrors);
+      await this.dataMartRunRepository.update(runId, {
+        status: DataMartRunStatus.RUNNING,
+      });
+      const configurationResults = await this.runConnectorConfigurations(
+        runId,
+        dataMart,
+        state,
+        payload
+      );
+
+      configurationResults.forEach(result => {
+        capturedLogs.push(...result.logs);
+        capturedErrors.push(...result.errors);
+      });
+
+      const successCount = configurationResults.filter(r => r.success).length;
+      const totalCount = configurationResults.length;
+      this.logger.log(
+        `Connector execution completed: ${successCount}/${totalCount} configurations successful for DataMart ${dataMart.id}`
+      );
     } catch (error) {
-      await this.handleRunFailure(runId, error, capturedLogs, capturedErrors, dataMart.id);
+      capturedErrors.push({
+        type: ConnectorMessageType.ERROR,
+        at: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+        toFormattedString: () =>
+          `[ERROR] ${error instanceof Error ? error.message : String(error)}`,
+      });
+      this.logger.error(`Error running connector configurations: ${error}`);
     } finally {
+      await this.updateRunStatus(runId, capturedLogs, capturedErrors);
+      await this.updateRunState(dataMart.id, state);
+
       this.logger.debug(`Actualizing schema for DataMart ${dataMart.id} after connector execution`);
       await this.dataMartService.actualizeSchema(
         dataMart.id,
@@ -141,156 +208,129 @@ export class ConnectorExecutionService {
   private async runConnectorConfigurations(
     runId: string,
     dataMart: DataMart,
-    logCaptureConfig: LogCaptureConfig
-  ): Promise<void> {
+    state: ConnectorOutputState,
+    payload?: Record<string, unknown>
+  ): Promise<ConfigurationExecutionResult[]> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
 
     const configurationResults: ConfigurationExecutionResult[] = [];
 
     for (const [configIndex, config] of connector.source.configuration.entries()) {
-      const configLogs: string[] = [];
-      const configErrors: string[] = [];
+      const configLogs: ConnectorMessage[] = [];
+      const configErrors: ConnectorMessage[] = [];
+      let success = true;
 
-      const configLogCapture = this.createConfigurationLogCaptureConfig(
-        dataMart.id,
-        configIndex,
-        configErrors,
-        configLogs
+      const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
+        (message: ConnectorMessage) => {
+          switch (message.type) {
+            case ConnectorMessageType.ERROR:
+              configErrors.push(message);
+              this.logger.error(`${message.toFormattedString()}`);
+              success = false;
+              break;
+            case ConnectorMessageType.REQUESTED_DATE:
+              state.state = { date: message.date };
+              state.at = message.at;
+              break;
+            case ConnectorMessageType.STATUS:
+              if (message.status.includes('error')) {
+                success = false;
+                configErrors.push(message);
+                this.logger.error(`${message.toFormattedString()}`);
+              } else {
+                configLogs.push(message);
+                this.logger.log(`${message.toFormattedString()}`);
+              }
+              break;
+            default:
+              configLogs.push(message);
+              this.logger.log(`${message.toFormattedString()}`);
+              break;
+          }
+        }
       );
 
       try {
-        const runConfig = new RunConfig({
+        const configuration = new Config({
           name: connector.source.name,
           datamartId: dataMart.id,
-          source: this.getSourceConfig(connector, config),
+          source: await this.getSourceConfig(dataMart.id, connector, config),
           storage: this.getStorageConfig(dataMart),
         });
-
+        const runConfig = this.getRunConfig(payload, state);
         const connectorRunner = new ConnectorRunner();
-        await connectorRunner.run(dataMart.id, runId, runConfig, configLogCapture);
-
-        configurationResults.push({
-          configIndex,
-          success: true,
-          logs: configLogs,
-          errors: configErrors,
-        });
-
-        this.logger.log(
-          `Configuration ${configIndex + 1} completed successfully for DataMart ${dataMart.id}`
-        );
+        await connectorRunner.run(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
+        if (configErrors.length === 0) {
+          this.logger.log(
+            `Configuration ${configIndex + 1} completed successfully for DataMart ${dataMart.id}`
+          );
+        }
       } catch (error) {
+        success = false;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        configErrors.push(`Configuration ${configIndex + 1} failed: ${errorMessage}`);
-
-        configurationResults.push({
-          configIndex,
-          success: false,
-          logs: configLogs,
-          errors: configErrors,
+        configErrors.push({
+          type: ConnectorMessageType.ERROR,
+          at: new Date().toISOString(),
+          error: errorMessage,
+          toFormattedString: () =>
+            `[ERROR] Configuration ${configIndex + 1} failed: ${errorMessage}`,
         });
-
         this.logger.error(
           `Configuration ${configIndex + 1} failed for DataMart ${dataMart.id}:`,
           error
         );
+      } finally {
+        configurationResults.push({
+          configIndex,
+          success: success,
+          logs: configLogs,
+          errors: configErrors,
+        });
       }
     }
 
-    this.mergeConfigurationResults(configurationResults, logCaptureConfig);
-
-    const successCount = configurationResults.filter(r => r.success).length;
-    const totalCount = configurationResults.length;
-    this.logger.log(
-      `Connector execution completed: ${successCount}/${totalCount} configurations successful for DataMart ${dataMart.id}`
-    );
-  }
-
-  private createConfigurationLogCaptureConfig(
-    dataMartId: string,
-    configIndex: number,
-    capturedErrors: string[],
-    capturedLogs: string[]
-  ): LogCaptureConfig {
-    return {
-      logCapture: {
-        onStdout: (message: string) => {
-          const logMessage = message.trim();
-          capturedLogs.push(`[Config ${configIndex + 1}] ${logMessage}`);
-          this.logger.log(`[${dataMartId}][Config ${configIndex + 1}]: ${logMessage}`);
-        },
-        onStderr: (message: string) => {
-          const errorMessage = message.trim();
-          capturedErrors.push(`[Config ${configIndex + 1}] ${errorMessage}`);
-          this.logger.error(`[${dataMartId}][Config ${configIndex + 1}]: ${errorMessage}`);
-        },
-        passThrough: false,
-      },
-    };
-  }
-
-  private mergeConfigurationResults(
-    configurationResults: ConfigurationExecutionResult[],
-    originalLogCapture: LogCaptureConfig
-  ): void {
-    for (const result of configurationResults) {
-      for (const log of result.logs) {
-        originalLogCapture.logCapture.onStdout(log);
-      }
-
-      for (const error of result.errors) {
-        originalLogCapture.logCapture.onStderr(error);
-      }
-    }
+    return configurationResults;
   }
 
   private async updateRunStatus(
     runId: string,
-    capturedLogs: string[],
-    capturedErrors: string[]
+    capturedLogs: ConnectorMessage[],
+    capturedErrors: ConnectorMessage[]
   ): Promise<void> {
     const status = capturedErrors.length > 0 ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
 
     await this.dataMartRunRepository.update(runId, {
       status,
-      logs: capturedLogs,
-      errors: capturedErrors,
+      logs: capturedLogs.map(log => JSON.stringify(log)),
+      errors: capturedErrors.map(error => JSON.stringify(error)),
     });
   }
 
-  private async handleRunFailure(
-    runId: string,
-    error: unknown,
-    capturedLogs: string[],
-    capturedErrors: string[],
-    dataMartId: string
-  ): Promise<void> {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    capturedErrors.push(errorMessage);
-
-    await this.dataMartRunRepository.update(runId, {
-      status: DataMartRunStatus.FAILED,
-      logs: capturedLogs,
-      errors: capturedErrors,
-    });
-
-    this.logger.error(`Connector execution failed for DataMart ${dataMartId}:`, error);
+  private async updateRunState(dataMartId: string, state: ConnectorOutputState): Promise<void> {
+    if (state.state.date) {
+      await this.connectorStateService.updateState(dataMartId, state);
+    }
   }
 
-  private getSourceConfig(
+  private async getSourceConfig(
+    dataMartId: string,
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>
-  ): SourceConfig {
+  ): Promise<SourceConfig> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
       .join(', ');
+    const state = await this.connectorStateService.getState(dataMartId);
 
     return new SourceConfig({
       name: connector.source.name,
       config: {
         ...config,
         Fields: fieldsConfig,
+        ...(state?.state?.date
+          ? { LastRequestedDate: new Date(state.state.date as string).toISOString().split('T')[0] }
+          : {}),
       },
     });
   }
@@ -352,6 +392,24 @@ export class ConnectorExecutionService {
         DestinationTableName: connector.storage?.fullyQualifiedName.split('.')[1],
         AthenaOutputLocation: `s3://${clearBucketName}/owox-data-marts/${dataMart.id}`,
       },
+    });
+  }
+
+  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorOutputState): RunConfig {
+    const type = payload?.runType || 'INCREMENTAL';
+    const data = payload?.data
+      ? Object.entries(payload.data).map(([key, value]) => {
+          return {
+            configField: key,
+            value: value,
+          };
+        })
+      : [];
+
+    return new RunConfig({
+      type,
+      data,
+      state: state?.state,
     });
   }
 }

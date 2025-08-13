@@ -7,16 +7,10 @@ To start importing data from Reddit Ads, make a copy of one of the following tem
 
 Fill in required parameters:
 
-- **Start Date**
 - **Account IDs**
 - **Fields**
 - **Destination Dataset ID** (applicable only for the **Google BigQuery** template)
 - **Destination Location** (applicable only for the **Google BigQuery** template)
-
-The import will begin from the selected **Start Date**.  
-> ⚠️ **Note:** Choosing a long date range may result in import failure due to high data volume.
-
-![Reddit Start Date](res/reddit_startdate.png)
 
 You can find your **Account ID** on the homepage of your [Reddit Ads account](https://ads.reddit.com/):
 
@@ -49,12 +43,33 @@ Enter your credentials as described in this guide:
 
 ![Reddit Token](res/reddit_tokens.png)
 
-Click **Check and Save**. Once credentials are saved, go to:  
-**OWOX → Import New Data**
+Click **Check and Save**. Once credentials are saved, go to menu.
 
-![Reddit Import Data](res/reddit_import.png)
+Now you have **two options** for importing data from Reddit Ads:
 
-The process is complete when the **Log** sheet shows the message:  
+Option 1: Import Current Day's Data
+
+Choose **OWOX → Import New Data** to load data for the **current day**.
+
+![Reddit Import New Data](res/reddit_importcurrentday.png)
+
+> ℹ️ If you click **Import New Data** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
+
+![Reddit Reimport](res/reddit_reimport.png)
+
+Option 2: Manual Backfill for Specific Date Range
+
+Choose **Manual Backfill** to load historical data for a custom time range.
+
+![Reddit Backfill](res/reddit_backfill.png)
+
+1. Select the **Start Date** and **End Date**  
+2. Click the **Run Manual Backfill** button
+
+![Reddit Run Backfill](res/reddit_runbackfill.png)
+
+The process is complete when the **Log** field shows the message:  
 **"Import is finished"**  
 
 Access Your Data:
@@ -67,16 +82,8 @@ Access Your Data:
 
 ![Reddit Finished](res/reddit_finish.png)
 
-To include more fields later, check the appropriate boxes in the **Fields** tab and click:  
-**OWOX → Import New Data**
-
-> ⚠️ **Important:** To change the date range:
->
-> 1. Clear existing data in the **Status** columns
-> 2. Update the **Start Date** and/or **End Date**
-> 3. Run **OWOX → Import New Data** again
-
-![Reddit Clear](res/reddit_clear.png)
+Want to include more fields? You can customize the imported data by selecting additional checkboxes in the **Fields** tab.
+After adjusting your field selection, run the import again to retrieve the updated data.
 
 If you encounter any issues:
 

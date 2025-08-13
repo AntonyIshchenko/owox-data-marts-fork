@@ -6,12 +6,12 @@
  */
 
 var XAdsConnector = class XAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: ""
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -93,7 +93,9 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         storage.saveData(preparedData);
       }
 
-      this.config.updateLastRequstedDate(currentDate);
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
   
@@ -134,8 +136,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
-          DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") }
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.source.fieldsSchema[nodeName].destinationName }
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,

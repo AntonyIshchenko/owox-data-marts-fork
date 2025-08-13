@@ -1,16 +1,20 @@
-import dataSource from '../data-source';
 import { createLogger } from '../common/logger/logger.service';
 import { ConfigService } from '@nestjs/config';
+import { createDataSourceOptions } from './data-source-options.config';
+import { DataSource } from 'typeorm';
 
 export async function runMigrationsIfNeeded(config: ConfigService): Promise<void> {
   const logger = createLogger('MigrationRunner');
 
-  const shouldRun = config.get<string>('RUN_MIGRATIONS') === 'true';
+  const runMigrations = config.get<string>('RUN_MIGRATIONS') ?? 'true';
+  const shouldRun = runMigrations === 'true';
 
   if (!shouldRun) {
     logger.log('RUN_MIGRATIONS is not set to "true". Skipping migrations.');
     return;
   }
+
+  const dataSource = new DataSource(createDataSourceOptions(config));
 
   if (!dataSource.isInitialized) {
     await dataSource.initialize();

@@ -6,12 +6,12 @@
  */
 
 var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "reddit_ads_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -97,7 +97,9 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
         storage.saveData(preparedData);
       }
 
-      this.config.updateLastRequstedDate(currentDate);
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
   
@@ -138,8 +140,8 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
 
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
-          DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + RedditAdsHelper.sanitizeNodeName(nodeName) }
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.source.fieldsSchema[nodeName].destinationName }
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,

@@ -1,0 +1,9 @@
+**/**
+!Sources/LinkedInAds/*.js
+!Sources/LinkedInAds/**/*.js
+!appsscript.json
+!Core/**/*.js
+!Constants/*.js
+!Views/**/*
+!Storages/**/*.js
+!Configs/AppsScript/*.js

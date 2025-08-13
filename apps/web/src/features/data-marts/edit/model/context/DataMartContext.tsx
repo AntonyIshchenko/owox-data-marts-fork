@@ -12,6 +12,7 @@ import {
 import { dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
+  RunDataMartRequestDto,
   UpdateDataMartConnectorDefinitionRequestDto,
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartRequestDto,
@@ -221,11 +222,23 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   };
 
   // Run a data mart
-  const runDataMart = async (id: string) => {
+  const runDataMart = async (request: RunDataMartRequestDto) => {
     try {
       dispatch({ type: 'RUN_DATA_MART_START' });
-      await dataMartService.runDataMart(id);
+      await dataMartService.runDataMart(request.id, request.payload);
       dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
+    } catch (error) {
+      dispatch({
+        type: 'RUN_DATA_MART_ERROR',
+        payload: extractApiError(error),
+      });
+    }
+  };
+
+  const cancelDataMartRun = async (id: string, runId: string): Promise<void> => {
+    try {
+      await dataMartService.cancelDataMartRun(id, runId);
+      await getDataMartRuns(id);
     } catch (error) {
       dispatch({
         type: 'RUN_DATA_MART_ERROR',
@@ -264,6 +277,38 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  // Get run history for a data mart
+  const getDataMartRuns = useCallback(async (id: string, limit = 5, offset = 0) => {
+    try {
+      dispatch({ type: 'FETCH_DATA_MART_RUNS_START' });
+      const response = await dataMartService.getDataMartRuns(id, limit, offset);
+      dispatch({ type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: response });
+      return response;
+    } catch (error) {
+      dispatch({
+        type: 'FETCH_DATA_MART_RUNS_ERROR',
+        payload: extractApiError(error),
+      });
+      throw error;
+    }
+  }, []);
+
+  // Load more run history for a data mart
+  const loadMoreDataMartRuns = useCallback(async (id: string, offset: number, limit = 5) => {
+    try {
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_START' });
+      const response = await dataMartService.getDataMartRuns(id, limit, offset);
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: response });
+      return response;
+    } catch (error) {
+      dispatch({
+        type: 'LOAD_MORE_DATA_MART_RUNS_ERROR',
+        payload: extractApiError(error),
+      });
+      throw error;
+    }
+  }, []);
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -289,8 +334,11 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     updateDataMartDefinition,
     publishDataMart,
     runDataMart,
+    cancelDataMartRun,
     actualizeDataMartSchema,
     updateDataMartSchema,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
     getErrorMessage,
     reset,
   };

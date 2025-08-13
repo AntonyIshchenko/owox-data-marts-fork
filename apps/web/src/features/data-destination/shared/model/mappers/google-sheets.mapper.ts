@@ -1,7 +1,7 @@
 import type { DestinationMapper } from './destination-mapper.interface.ts';
 import type { DataDestinationResponseDto } from '../../services/types';
 import type { GoogleSheetsDataDestination } from '../types';
-import { DataDestinationType, GoogleSheetCredentialsType } from '../../enums';
+import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
 import type { DataDestinationFormData } from '../../types';
 import type {
   UpdateDataDestinationRequestDto,
@@ -13,7 +13,10 @@ export class GoogleSheetsMapper implements DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): GoogleSheetsDataDestination {
     let serviceAccountJson = '';
     try {
-      serviceAccountJson = JSON.stringify(dto.credentials.serviceAccountKey, null, 2);
+      // Check if credentials are of type GoogleSheetsCredentialsResponse
+      if (dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS) {
+        serviceAccountJson = JSON.stringify(dto.credentials.serviceAccountKey, null, 2);
+      }
     } catch (error) {
       console.error(error, 'Error parsing service account key');
     }
@@ -31,17 +34,22 @@ export class GoogleSheetsMapper implements DestinationMapper {
     };
   }
 
-  mapToUpdateRequest(formData: DataDestinationFormData): UpdateDataDestinationRequestDto {
+  mapToUpdateRequest(formData: Partial<DataDestinationFormData>): UpdateDataDestinationRequestDto {
     const googleSheetsFormData = formData;
-    return {
-      title: googleSheetsFormData.title,
-      credentials: {
+    const result: UpdateDataDestinationRequestDto = {
+      title: googleSheetsFormData.title ?? '',
+    };
+
+    if (googleSheetsFormData.credentials) {
+      result.credentials = {
         serviceAccountKey: JSON.parse(
           (googleSheetsFormData.credentials as GoogleServiceAccountCredentials).serviceAccount
         ),
-        type: GoogleSheetCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
-      },
-    };
+        type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
+      };
+    }
+
+    return result;
   }
 
   mapToCreateRequest(formData: DataDestinationFormData): CreateDataDestinationRequestDto {
@@ -53,7 +61,7 @@ export class GoogleSheetsMapper implements DestinationMapper {
         serviceAccountKey: JSON.parse(
           (googleSheetsFormData.credentials as GoogleServiceAccountCredentials).serviceAccount
         ),
-        type: GoogleSheetCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
+        type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
       },
     };
   }

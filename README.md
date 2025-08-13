@@ -1,47 +1,120 @@
 # OWOX Data Marts
 
-## 🏷 Free, Open-Source Connectors for Data Analysts
+## 🏷 Self-Service Analytics Platform
 
-Collect any marketing, financial, or CRM data into **AWS Athena**, **Google BigQuery**, or **Google Sheets** — for free.
-No vendors. No lock-in. No permissions sharing with 3-rd parties. Just JavaScript + full control for you.
+OWOX Data Marts is your way to create a data mart library and empower business users with spreadsheet reports and dashboards — in minutes.
 
-[🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
-![JavaScript Open-Source Connectors](packages/connectors/res/main-cover.png)
+[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
+
+![OWOX Data Marts - Open-Source Self-Service Analytics Platform](./docs/res/owox-data-marts-schema.svg)
 
 ## ✨ Why We Built This
 
-We believe every **data analyst should have the power to automate their data collection & reporting** — without begging for engineering help, paying for expensive SaaS tools, or exposing credentials to vendors.
-We want to empower **every business to become data owners** by importing their data into Spreadsheets or data warehouses.
+Data analysts’ work means nothing unless business users can play with the data freely.
 
-OWOX Data Marts is a growing library of JavaScript-based **connectors** that:
+However, most **self-service analytics** initiatives fail because they compromise either the data analysts’ control or the business users’ freedom.
 
-- Pull data from **any APIs** like Facebook, TikTok, LinkedIn, etc.
-- Run inside **YOUR** Google Sheet (via Apps Script) or infrastructure (via Node.js)
-- Require **no external platforms** or credentials sharing
-- Doesn't require **ANY data engineering resources**
-- Are 100% open-source and **customizable**
-- **Free forever**: your connector - your control
+At OWOX, we value both:
 
-Whether you're an analyst at an agency, a startup, or in a huge enterprise, this project gives you **full control over your data collection connectors**.
+- Data analysts **orchestrate data marts** defined either by [SQL](./docs/getting-started/setup-guide/sql-data-mart.md) or by [connectors](./docs/getting-started/setup-guide/connector-data-mart.md) to sources like Facebook Ads, TikTok Ads, and LinkedIn Ads.
+- Business users **enjoy trusted reports** right [where they want them](./docs/destinations/manage-destinations.md) — in spreadsheets or dashboards.
+
+At OWOX, we believe data analysts shouldn’t have to waste time on CSV files and one-off dashboards. Business users shouldn’t have to be forced to use complex BI tools either.
+
+## 🚀 What You Can Do with OWOX Data Marts
+
+### 📘 Create a Data Mart Library
+
+Bring together data from your warehouse (BigQuery, Snowflake, etc.), APIs, or spreadsheets – and turn it into fast, reusable artifacts that you can manage & share:
+
+- Connectors to any marketing, financial, or CRM data that you can collect into **AWS Athena** or **Google BigQuery** (more supported DWHs are being developed as you read this)
+- Custom SQL
+- Tables & views
+- Table patterns (eg, events_2025*)
+
+### 📤 Deliver Trusted Data Anywhere
+
+Connect your Data Marts to Google Sheets, Looker Studio, or Excel – empowering business teams with reports they need to make decisions.
+
+### 🧾 Define a Semantic Layer
+
+Document KPIs and metrics once, and keep every dashboard, pivot table, and report in sync with the same numbers & logic behind calculations – no matter the tool.
+
+### 📅 Automate Everything
+
+Use the advanced scheduler to refresh both Data Marts and exports at any time, fully automated and managed from a single place
+
+## 🛠 Installation Guide
+
+**OWOX Data Marts** can be run just about anywhere in minutes.  
+Here’s how to get started locally on your machine:
+
+1. **Install Node.js** (version 22.16.0 or higher)  
+
+   If it’s not installed yet, [download it here](https://nodejs.org/en/download)
+
+2. **Open your terminal** and run:
+
+   ```bash
+   npm install -g owox
+   ```
+
+   (You may see warnings - they’re safe to ignore)
+
+3. **Start OWOX Data Marts** locally
+
+   ```bash
+   owox serve
+   ```
+
+   (You should see something like:
+   🚀 Starting OWOX Data Marts...
+   📦 Starting server on port 3000...)
+
+4. **Open your browser** and go to **<http://localhost:3000>** to explore! 🎉
+
+For more details on the types of deployment in your infrastructure, check out our [Quick Start Guide](./docs/getting-started/quick-start.md)
+
+### Google Sheets Edition
+
+Alternatively, you can run any of [our connectors](#data-sources) using Google Sheet templates we've developed for [OWOX Data Marts Apps Script Edition](./docs/editions/appsscript-edition.md)
+
+- Pick your platform (eg, Facebook Ads) from [existing integrations](#data-sources)
+- Make a copy of the template
+- Add your credentials — **they stay private**
+- Run the connector to pull your data
+- Schedule it for hourly/daily/weekly/monthly updates
+
+For more details - watch the webinar replay - [**🎥 Own Your Data: How Data Analysts Can Connect Any Data**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
 
 ## 🔌 Available Connectors
 
+**OWOX Data Marts** includes growing library of JavaScript **connectors** that:
+
+- Pull data from **any APIs** like Facebook Marketing, TikTok Ads, LinkedIn Ads, etc.
+- Require **zero external tools** or sharing credentials
+- Don't require **ANY data engineering resources**
+- Free, open-source, and **customizable**
+- Give full control over the logic
+- Works with [Google Sheets](packages/connectors/src/Storages/GoogleSheets/README.md) & [BigQuery](packages/connectors/src/Storages/GoogleBigQuery/README.md)
+
 ### Data Sources
 
-| Name                          | Status            | Links                                                                                                                                                                                                                                 |
+| Name                          | Status            | Links     |
 | ----------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Facebook Ads                  | 🟢 Public         | [Google Drive](https://drive.google.com/drive/u/0/folders/1_x556pta5lKtKbTltIrPEDkNqAn78jM4), [Source Code](packages/connectors/src/Sources/FacebookMarketing), [Readme](packages/connectors/src/Sources/FacebookMarketing/README.md) |
-| Open Exchange Rates           | 🟢 Public         | [Google Drive](https://drive.google.com/drive/u/0/folders/1akutchS-Txr5PwToMzHrikTXd_GTs-84), [Source Code](packages/connectors/src/Sources/OpenExchangeRates), [Readme](packages/connectors/src/Sources/OpenExchangeRates/README.md) |
-| Bank of Canada                | 🟢 Public         | [Google Drive](https://drive.google.com/drive/u/0/folders/18c9OHHmdZs-evtU1bWd6pIqdXjnANRmv), [Source Code](packages/connectors/src/Sources/BankOfCanada), [Readme](packages/connectors/src/Sources/BankOfCanada/README.md)           |
-| LinkedIn Ads & LinkedIn Pages | 🟢 Public         | [Google Drive](https://drive.google.com/drive/folders/1anKRhqJpSWEoeDZvJtrNLgfsGfgSBtIm), [Source Code](packages/connectors/src/Sources/LinkedIn), [Readme](packages/connectors/src/Sources/LinkedIn/README.md)                       |
-| TikTok Ads                    | 🟢 Public         | [Google Drive](https://drive.google.com/drive/folders/1zYBdx4Lm496mrCmwSNG3t82weWZRJb0o), [Source Code](packages/connectors/src/Sources/TikTokAds), [Readme](packages/connectors/src/Sources/TikTokAds/README.md)                     |
-| X Ads (former Twitter Ads)    | 🟢 Public         | [Google Drive](https://drive.google.com/drive/folders/16PMllaU704wrjHH45MlOBjQWZdxNhxZN), [Source Code](packages/connectors/src/Sources/XAds), [Readme](packages/connectors/src/Sources/XAds/README.md)                               |
-| Criteo Ads                    | 🟢 Public         | [Google Drive](https://drive.google.com/drive/folders/12C7MZDyUb5fnI9IIxD8o_qvLecOD7TyQ?usp=sharing), [Source Code](packages/connectors/src/Sources/CriteoAds), [Readme](packages/connectors/src/Sources/CriteoAds/README.md)         |
-| Bing Ads                      | 🟢 Public         | [Google Drive](https://drive.google.com/drive/folders/1AmLYbXj72CpDeamfCecvIXJgvKwIpoOS?usp=sharing), [Source Code](packages/connectors/src/Sources/BingAds), [Readme](packages/connectors/src/Sources/BingAds/README.md)             |
-| Reddit Ads                    | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1Bnd-GN2u3BPzI1RqZpG03aeov9kcaXNx?usp=sharing), [Source Code](packages/connectors/src/Sources/RedditAds), [Readme](packages/connectors/src/Sources/RedditAds/README.md)                      |
-| Hotline                       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                                                                                                                                                                  |
-| Shopify Ads                   | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                                                                                                                                                                  |
-| Google Business Profile       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                                                                                                                                                                  |
+| Facebook Ads                  | 🟢 Public         | [Get started](packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md) |
+| Open Exchange Rates           | 🟢 Public         | [Get started](packages/connectors/src/Sources/OpenExchangeRates/GETTING_STARTED.md) |
+| Bank of Canada                | 🟢 Public         | [Get started](packages/connectors/src/Sources/BankOfCanada/GETTING_STARTED.md)      |
+| LinkedIn Ads                  | 🟢 Public         | [Get started](packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md)       |
+| LinkedIn Pages                | 🟢 Public         | [Get started](packages/connectors/src/Sources/LinkedInPages/GETTING_STARTED.md)     |
+| TikTok Ads                    | 🟢 Public         | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
+| X Ads (former Twitter Ads)    | 🟢 Public         | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
+| Criteo Ads                    | 🟢 Public         | [Get started](packages/connectors/src/Sources/CriteoAds/GETTING_STARTED.md)         |
+| Bing Ads                      | 🟢 Public         | [Get started](packages/connectors/src/Sources/BingAds/GETTING_STARTED.md)           |
+| Reddit Ads                    | 🟢 Public         | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
+| Hotline                       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
+| Shopify Ads                   | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                |
+| Google Business Profile       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
 
 ### Data Storages
 
@@ -53,60 +126,20 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 
 If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
 
-## 🧰 How It Works
+## 🧑‍💻 Contribute
 
-### Community Edition (Node.js)
+Want to build a connector? We'd love your help.
 
-For detailed installation instructions, see our [Quick Start 🚀 (no-code setup)](docs/getting-started/quick-start.md).
+**To contribute to existing integrations or create a new one:**
 
-### Community Apps Script Edition
+- [Join our community](https://github.com/OWOX/owox-data-marts/discussions)
+- Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
+- Watch or read [this tutorial](packages/connectors/TUTORIAL.md) of how we built a new connector in < 25 minutes
+- Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
+  
+All you need to get started is the desire to build a new connector. No software installation is required on your computer.
 
-- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](#-available-connectors)
-- 🧾 Make a copy of the Template from the [connectors table](#-available-connectors)
-- 🔐 Add your API credentials directly to the sheet — **they stay private**
-- 🚀 Run the Apps Script to pull your data
-- 📅 Schedule it (optional) for daily/weekly refreshes
-
-#### 🎥 Watch the Webinar - *Own Your Data*
-
-[![Own Your Data — Webinar Thumbnail](https://img.youtube.com/vi/nQYfHX-IjY8/maxresdefault.jpg)](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
-
-**Own Your Data: How Data Analysts Can Connect Any Data**  
-Learn how to collect and automate marketing, financial, and any other data into Google Sheets or BigQuery — with **zero engineering help** and **no SaaS subscriptions**.
-
-▶️ [**Watch the Replay on YouTube**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
-
-What you'll learn:
-
-- Why data access is broken (and how to fix it)
-- Facebook Ads → Sheets and TikTok Ads → BigQuery — **live demos**
-- How to automate reporting across clients without SaaS limits
-- How to contribute, customize, and grow the connector library
-
-🎯 **For**: Data analysts at agencies, startups, enterprises, or doing solo  
-🛠️ **Includes**: Free templates & walkthroughs  
-🎙️ **Hosted by**: [Ievgen Krasovytskyi](https://www.linkedin.com/in/ievgenkrasovytskyi/)
-
-## 🧑‍💻 Contribute or Build Your Own
-
-Want to build a connector?
-We'd love your help.
-**To contribute to existing integrations or create a new one**:
-
-- 📘 Read the [Contributor guide](packages/connectors/CONTRIBUTING.md)
-- 📌 Check open [connector requests](https://github.com/OWOX/owox-data-marts/issues)
-
-All you need to get started is basic knowledge of Apps Script and a GitHub login.
-No software installation is required on your computer.
-
-Whether you're adding a new API, tweaking one, or improving docs, we'll support and **spotlight you**.
-
-## 🌍 Join the Community
-
-Need help or want to connect with others?
-
-- 💬 [Join our Community](https://github.com/OWOX/owox-data-marts/discussions)
-- 🗨️ Ask questions or suggest features
+Whether you're adding a new platform, tweaking an existing connector, or improving docs, we'll support and **spotlight you**.
 
 We're building this **with the community**, not just for it.
 
@@ -119,4 +152,4 @@ OWOX Data Marts is free for internal or client use, not for resale in a competin
 
 ---
 
-⭐ **Like this project?** [Star the repo here »](https://github.com/OWOX/owox-data-marts)
+⭐ **Like this project?** [Star our awesome repo »](https://github.com/OWOX/owox-data-marts)

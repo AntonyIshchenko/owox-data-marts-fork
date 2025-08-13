@@ -6,12 +6,12 @@
  */
 
 var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "criteo_ads_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -87,7 +87,10 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
         storage.saveData(preparedData);
       }
 
-      this.config.updateLastRequstedDate(currentDate);
+      // Only update LastRequestedDate for incremental runs
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
 
@@ -110,8 +113,8 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
 
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
-          DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") }
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.source.fieldsSchema[nodeName].destinationName }
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,

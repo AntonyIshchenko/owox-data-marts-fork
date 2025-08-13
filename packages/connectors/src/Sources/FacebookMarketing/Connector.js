@@ -8,16 +8,15 @@
 var FacebookMarketingConnector = class FacebookMarketingConnector extends AbstractConnector {
 
   // ---- constructor ------------------------------------
-      constructor(config, source, storageName = "GoogleSheetsStorage") {
+      constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: ""
       }
-    }), 
-    source);
-//console.log(config.DestinationTableNamePrefix);
-      this.storageName = storageName;
+    }), source, null, runConfig);
+    
+    this.storageName = storageName;
 
     }
 
@@ -149,7 +148,10 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         
         }
 
-        this.config.updateLastRequstedDate(startDate);
+        // Only update LastRequestedDate for incremental runs
+        if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+          this.config.updateLastRequstedDate(startDate);
+        }
         startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 
       }    
@@ -181,8 +183,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
       this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
         this.config.mergeParameters({ 
-          DestinationSheetName: {value: nodeName},
-          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") } 
+          DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName},
+          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName } 
         }), 
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],

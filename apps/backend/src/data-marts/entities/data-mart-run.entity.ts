@@ -25,8 +25,8 @@ export class DataMartRun {
   @Column({ type: 'json', nullable: true })
   definitionRun?: DataMartDefinition;
 
-  @Column({ default: DataMartRunStatus.RUNNING })
-  status: DataMartRunStatus;
+  @Column({ nullable: true })
+  status?: DataMartRunStatus;
 
   @Column({ type: 'json', nullable: true })
   logs?: string[];
@@ -36,4 +36,7 @@ export class DataMartRun {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'json', nullable: true })
+  additionalParams?: Record<string, unknown>;
 }

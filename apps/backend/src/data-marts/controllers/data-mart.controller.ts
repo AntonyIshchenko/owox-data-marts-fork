@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, HttpCode } from '@nestjs/common';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
@@ -15,6 +15,8 @@ import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
+import { GetDataMartRunsService } from '../use-cases/get-data-mart-runs.service';
+import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
 import { ApiTags } from '@nestjs/swagger';
 import {
   CreateDataMartSpec,
@@ -29,6 +31,9 @@ import {
   ValidateDataMartDefinitionSpec,
   ActualizeDataMartSchemaSpec,
   UpdateDataMartSchemaSpec,
+  SqlDryRunSpec,
+  GetDataMartRunsSpec,
+  CancelDataMartRunSpec,
 } from './spec/data-mart.api';
 import {
   AuthContext,
@@ -39,7 +44,12 @@ import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-ma
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
+import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
+import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
+import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -57,7 +67,10 @@ export class DataMartController {
     private readonly runDataMartService: RunDataMartService,
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
-    private readonly updateSchemaService: UpdateDataMartSchemaService
+    private readonly updateSchemaService: UpdateDataMartSchemaService,
+    private readonly sqlDryRunService: SqlDryRunService,
+    private readonly getDataMartRunsService: GetDataMartRunsService,
+    private readonly cancelDataMartRunService: CancelDataMartRunService
   ) {}
 
   @Post()
@@ -151,11 +164,24 @@ export class DataMartController {
   @RunDataMartSpec()
   async manualRun(
     @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Body() dto: RunDataMartRequestApiDto
   ): Promise<{ runId: string }> {
-    const command = this.mapper.toRunCommand(id, context);
-    const runId = await this.runDataMartService.run(command.id, command.projectId, command.userId);
+    const command = this.mapper.toRunCommand(id, context, dto.payload);
+    const runId = await this.runDataMartService.run(command);
     return { runId };
+  }
+
+  @Post(':id/runs/:runId/cancel')
+  @CancelDataMartRunSpec()
+  @HttpCode(204)
+  async cancelRun(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Param('runId') runId: string
+  ): Promise<void> {
+    const command = this.mapper.toCancelRunCommand(id, runId, context);
+    await this.cancelDataMartRunService.run(command);
   }
 
   @Post(':id/validate-definition')
@@ -190,5 +216,31 @@ export class DataMartController {
     const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
     const dataMart = await this.updateSchemaService.run(command);
     return this.mapper.toResponse(dataMart);
+  }
+
+  @Post(':id/sql-dry-run')
+  @HttpCode(200)
+  @SqlDryRunSpec()
+  async sqlDryRun(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: SqlDryRunRequestApiDto
+  ): Promise<SqlDryRunResponseApiDto> {
+    const command = this.mapper.toSqlDryRunCommand(id, context, dto);
+    const result = await this.sqlDryRunService.run(command);
+    return this.mapper.toSqlDryRunResponse(result);
+  }
+
+  @Get(':id/runs')
+  @GetDataMartRunsSpec()
+  async getRunHistory(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Query('limit') limit: number = 20,
+    @Query('offset') offset: number = 0
+  ): Promise<DataMartRunsResponseApiDto> {
+    const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
+    const runs = await this.getDataMartRunsService.run(command);
+    return this.mapper.toRunsResponse(runs);
   }
 }

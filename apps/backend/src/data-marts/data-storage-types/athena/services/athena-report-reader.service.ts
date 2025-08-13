@@ -1,6 +1,11 @@
-import { ColumnInfo } from '@aws-sdk/client-athena/dist-types/models';
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { isAthenaDataMartSchema } from '../../data-mart-schema.guards';
 import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
+import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
+import {
+  AthenaReaderState,
+  isAthenaReaderState,
+} from '../interfaces/athena-reader-state.interface';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { Report } from '../../../entities/report.entity';
@@ -14,8 +19,8 @@ import { S3ApiAdapter } from '../adapters/s3-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
-import { AthenaDataMartSchema } from '../schemas/athena-data-mart-schema.schema';
 import { AthenaQueryBuilder } from './athena-query.builder';
+import { AthenaReportHeadersGenerator } from './athena-report-headers-generator.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AthenaReportReader implements DataStorageReportReader {
@@ -27,12 +32,14 @@ export class AthenaReportReader implements DataStorageReportReader {
   private queryExecutionId?: string;
   private outputBucket: string;
   private outputPrefix: string;
-  private databaseName: string;
+  private reportDataHeaders: ReportDataHeader[];
+  private reportConfig: { storage: DataStorage; definition: DataMartDefinition };
 
   constructor(
     private readonly athenaAdapterFactory: AthenaApiAdapterFactory,
     private readonly s3AdapterFactory: S3ApiAdapterFactory,
-    private readonly athenaQueryBuilder: AthenaQueryBuilder
+    private readonly athenaQueryBuilder: AthenaQueryBuilder,
+    private readonly headersGenerator: AthenaReportHeadersGenerator
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -41,31 +48,29 @@ export class AthenaReportReader implements DataStorageReportReader {
       throw new Error('Data Mart is not properly configured');
     }
 
-    if (schema && !isAthenaDataMartSchema(schema)) {
+    if (!schema) {
+      throw new Error('Athena data mart schema is required for header generation');
+    }
+
+    if (!isAthenaDataMartSchema(schema)) {
       throw new Error('Athena data mart schema is expected');
     }
 
-    await this.prepareApiAdapters(storage);
-    await this.prepareQueryExecution(definition);
+    this.reportConfig = { storage, definition };
 
-    if (!this.queryExecutionId) {
-      throw new Error('Query execution ID not set');
-    }
+    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.athenaAdapter.waitForQueryToComplete(this.queryExecutionId);
+    await this.prepareApiAdapters(this.reportConfig.storage);
 
-    // Get query results metadata
-    const metadata = await this.athenaAdapter.getQueryResultsMetadata(this.queryExecutionId);
-    if (!metadata.ColumnInfo) {
-      throw new Error('Failed to get query results metadata');
-    }
-
-    const dataHeaders = this.getDataHeaders(metadata.ColumnInfo, schema);
-
-    return new ReportDataDescription(dataHeaders);
+    return new ReportDataDescription(this.reportDataHeaders);
   }
 
   async readReportDataBatch(batchId?: string, maxDataRows = 1000): Promise<ReportDataBatch> {
+    // Initialize on first request
+    if (!this.queryExecutionId) {
+      await this.initializeReportData();
+    }
+
     if (!this.athenaAdapter) {
       throw new Error('Report data must be prepared before read');
     }
@@ -88,10 +93,28 @@ export class AthenaReportReader implements DataStorageReportReader {
     const startIndex = !batchId ? 1 : 0;
     const rows = results.ResultSet.Rows.slice(startIndex);
 
-    // Map rows to the expected format
+    const columnInfo = results.ResultSet.ResultSetMetadata?.ColumnInfo;
+    if (!columnInfo) {
+      throw new Error('Column metadata is not available');
+    }
+
+    // Create mapping from expected header order to actual column positions
+    const columnMapping: number[] = [];
+    for (const header of this.reportDataHeaders) {
+      const columnIndex = columnInfo.findIndex(col => col.Name === header.name);
+      if (columnIndex === -1) {
+        throw new Error(`Column '${header.name}' not found in query results`);
+      }
+      columnMapping.push(columnIndex);
+    }
+
     const mappedRows = rows.map(row => {
       if (!row.Data) return [];
-      return row.Data.map(cell => cell.VarCharValue);
+      const reorderedData: unknown[] = [];
+      for (const columnIndex of columnMapping) {
+        reorderedData.push(row.Data[columnIndex]?.VarCharValue);
+      }
+      return reorderedData;
     });
 
     return new ReportDataBatch(mappedRows, results.NextToken);
@@ -118,6 +141,20 @@ export class AthenaReportReader implements DataStorageReportReader {
     }
   }
 
+  private async initializeReportData(): Promise<void> {
+    if (!this.reportConfig) {
+      throw new Error('Report data must be prepared before read');
+    }
+
+    await this.prepareQueryExecution(this.reportConfig.definition);
+
+    if (!this.queryExecutionId) {
+      throw new Error('Query execution ID not set');
+    }
+
+    await this.athenaAdapter.waitForQueryToComplete(this.queryExecutionId);
+  }
+
   private async prepareApiAdapters(storage: DataStorage): Promise<void> {
     try {
       if (!isAthenaCredentials(storage.credentials)) {
@@ -130,9 +167,7 @@ export class AthenaReportReader implements DataStorageReportReader {
 
       this.athenaAdapter = this.athenaAdapterFactory.create(storage.credentials, storage.config);
       this.s3Adapter = this.s3AdapterFactory.create(storage.credentials, storage.config);
-
       this.outputBucket = storage.config.outputBucket;
-      this.databaseName = storage.config.databaseName;
 
       this.logger.debug('Athena and S3 adapters created successfully');
     } catch (error) {
@@ -158,7 +193,6 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     const result = await this.athenaAdapter.executeQuery(
       query,
-      this.databaseName,
       this.outputBucket,
       this.outputPrefix
     );
@@ -166,17 +200,30 @@ export class AthenaReportReader implements DataStorageReportReader {
     this.queryExecutionId = result.queryExecutionId;
   }
 
-  private getDataHeaders(
-    athenaColumns: ColumnInfo[],
-    dataMartSchema?: AthenaDataMartSchema
-  ): string[] {
-    return athenaColumns.map(col => {
-      const columnName = col.Name || '';
-      if (dataMartSchema) {
-        const schemaField = dataMartSchema.fields.find(field => field.name === columnName);
-        return schemaField?.alias || columnName;
-      }
-      return columnName;
-    });
+  getState(): AthenaReaderState | null {
+    if (!this.outputBucket || !this.outputPrefix) {
+      return null;
+    }
+
+    return {
+      type: DataStorageType.AWS_ATHENA,
+      queryExecutionId: this.queryExecutionId,
+      outputBucket: this.outputBucket,
+      outputPrefix: this.outputPrefix,
+    };
+  }
+
+  async initFromState(
+    state: DataStorageReportReaderState,
+    reportDataHeaders: ReportDataHeader[]
+  ): Promise<void> {
+    if (!isAthenaReaderState(state)) {
+      throw new Error('Invalid state type for Athena reader');
+    }
+
+    this.queryExecutionId = state.queryExecutionId;
+    this.outputBucket = state.outputBucket;
+    this.outputPrefix = state.outputPrefix;
+    this.reportDataHeaders = reportDataHeaders;
   }
 }

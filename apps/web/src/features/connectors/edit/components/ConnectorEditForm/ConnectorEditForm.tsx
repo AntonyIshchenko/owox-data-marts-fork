@@ -1,5 +1,5 @@
-import { useConnector } from '../../../../data-storage/shared/model/hooks/useConnector';
-import type { ConnectorDefinitionDto } from '../../../../data-storage/shared/api/types/response';
+import { useConnector } from '../../../shared/model/hooks/useConnector';
+import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useEffect, useState, useCallback } from 'react';
 
 import { DataStorageType } from '../../../../data-storage/shared/model/types';
@@ -12,12 +12,14 @@ import {
 } from './steps';
 import { StepNavigation } from './components';
 import type { ConnectorConfig } from '../../../../data-marts/edit/model';
+import type { ConnectorFieldsResponseApiDto } from '../../../shared/api/types/response/connector.response.dto';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
   dataStorageType: DataStorageType;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
+  mode?: 'full' | 'configuration-only' | 'fields-only';
 }
 
 export function ConnectorEditForm({
@@ -25,14 +27,16 @@ export function ConnectorEditForm({
   dataStorageType,
   configurationOnly = false,
   existingConnector = null,
+  mode = 'full',
 }: ConnectorEditFormProps) {
-  const [selectedConnector, setSelectedConnector] = useState<ConnectorDefinitionDto | null>(null);
+  const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [connectorConfiguration, setConnectorConfiguration] = useState<Record<string, unknown>>({});
   const [configurationIsValid, setConfigurationIsValid] = useState<boolean>(false);
   const [loadedSpecifications, setLoadedSpecifications] = useState<Set<string>>(new Set());
+  const [loadedFields, setLoadedFields] = useState<Set<string>>(new Set());
   const {
     connectors,
     connectorSpecification,
@@ -45,17 +49,22 @@ export function ConnectorEditForm({
     fetchConnectorSpecification,
     fetchConnectorFields,
   } = useConnector();
-  const [target, setTarget] = useState<{ fullyQualifiedName: string } | null>(null);
+
+  const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
+    null
+  );
 
   const steps = configurationOnly
     ? [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }]
-    : [
-        { id: 1, title: 'Select Connector', description: 'Choose a data source' },
-        { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
-        { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
-        { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
-        { id: 5, title: 'Target Setup', description: 'Configure destination' },
-      ];
+    : mode === 'fields-only'
+      ? [{ id: 1, title: 'Select Fields', description: 'Pick specific fields' }]
+      : [
+          { id: 1, title: 'Select Connector', description: 'Choose a data source' },
+          { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
+          { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
+          { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
+          { id: 5, title: 'Target Setup', description: 'Configure destination' },
+        ];
 
   const totalSteps = steps.length;
 
@@ -69,61 +78,65 @@ export function ConnectorEditForm({
     [loadedSpecifications, loadingSpecification, fetchConnectorSpecification]
   );
 
+  const loadFieldsSafely = useCallback(
+    async (connectorName: string) => {
+      if (!loadedFields.has(connectorName)) {
+        setLoadedFields(prev => new Set(prev).add(connectorName));
+        await fetchConnectorFields(connectorName);
+      }
+    },
+    [loadedFields, fetchConnectorFields]
+  );
+
+  // Regular modes initialization
   useEffect(() => {
+    // Load connectors if needed
     if (connectors.length === 0 && !loading) {
       void fetchAvailableConnectors();
     }
-  }, [connectors.length, loading, fetchAvailableConnectors]);
 
-  useEffect(() => {
-    if (existingConnector) {
+    // Setup existing connector
+    if (existingConnector && connectors.length > 0 && !selectedConnector) {
       const { source, storage } = existingConnector;
 
       setSelectedNode(source.node);
       setSelectedFields(source.fields);
       setConnectorConfiguration(source.configuration[0] || {});
+      setTarget({ fullyQualifiedName: storage.fullyQualifiedName, isValid: true });
 
-      setTarget({
-        fullyQualifiedName: storage.fullyQualifiedName,
-      });
+      const existingConnectorDef = connectors.find(c => c.name === source.name);
+      if (existingConnectorDef) {
+        setSelectedConnector(existingConnectorDef);
 
-      if (connectors.length > 0) {
-        const existingConnectorDef = connectors.find(c => c.name === source.name);
-        if (existingConnectorDef) {
-          setSelectedConnector(existingConnectorDef);
-
-          if (configurationOnly) {
-            void loadSpecificationSafely(existingConnectorDef.name);
-          } else {
-            void loadSpecificationSafely(existingConnectorDef.name);
-            void fetchConnectorFields(existingConnectorDef.name);
-          }
+        void loadSpecificationSafely(existingConnectorDef.name);
+        if (!configurationOnly && mode !== 'fields-only') {
+          void loadFieldsSafely(existingConnectorDef.name);
+        }
+        if (mode === 'fields-only') {
+          void loadFieldsSafely(existingConnectorDef.name);
         }
       }
     }
-  }, [
-    existingConnector,
-    connectors,
-    configurationOnly,
-    loadSpecificationSafely,
-    fetchConnectorFields,
-  ]);
 
-  useEffect(() => {
+    // Configuration-only mode setup
     if (configurationOnly && connectors.length > 0 && !selectedConnector && !existingConnector) {
       const firstConnector = connectors[0];
       setSelectedConnector(firstConnector);
       void loadSpecificationSafely(firstConnector.name);
     }
   }, [
-    configurationOnly,
-    connectors,
-    selectedConnector,
+    mode,
     existingConnector,
+    connectors,
+    configurationOnly,
+    loading,
+    fetchAvailableConnectors,
     loadSpecificationSafely,
+    loadFieldsSafely,
+    selectedConnector,
   ]);
 
-  const handleConnectorSelect = (connector: ConnectorDefinitionDto) => {
+  const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
@@ -133,7 +146,7 @@ export function ConnectorEditForm({
       return newSet;
     });
     void loadSpecificationSafely(connector.name);
-    void fetchConnectorFields(connector.name);
+    void loadFieldsSafely(connector.name);
   };
 
   const handleFieldSelect = (fieldName: string) => {
@@ -143,7 +156,7 @@ export function ConnectorEditForm({
 
   const handleFieldToggle = (fieldName: string, isChecked: boolean) => {
     if (isChecked) {
-      setSelectedFields(prev => [...prev, fieldName]);
+      setSelectedFields(prev => (prev.includes(fieldName) ? prev : [...prev, fieldName]));
     } else {
       setSelectedFields(prev => prev.filter(f => f !== fieldName));
     }
@@ -160,7 +173,9 @@ export function ConnectorEditForm({
     }
   };
 
-  const handleTargetChange = (newTarget: { fullyQualifiedName: string }) => {
+  const handleTargetChange = (
+    newTarget: { fullyQualifiedName: string; isValid: boolean } | null
+  ) => {
     setTarget(newTarget);
   };
 
@@ -200,6 +215,15 @@ export function ConnectorEditForm({
       return selectedConnector !== null && configurationIsValid;
     }
 
+    if (mode === 'fields-only') {
+      switch (currentStep) {
+        case 1:
+          return selectedFields.length > 0;
+        default:
+          return false;
+      }
+    }
+
     switch (currentStep) {
       case 1:
         return selectedConnector !== null;
@@ -210,7 +234,7 @@ export function ConnectorEditForm({
       case 4:
         return selectedFields.length > 0;
       case 5:
-        return target !== null;
+        return target !== null && target.fullyQualifiedName !== '' && target.isValid;
       default:
         return false;
     }
@@ -220,10 +244,21 @@ export function ConnectorEditForm({
     return currentStep > 1;
   };
 
+  const getDestinationName = (
+    connectorFields: ConnectorFieldsResponseApiDto[] | null,
+    selectedNode: string
+  ): string => {
+    if (!connectorFields) return selectedNode;
+
+    const field = connectorFields.find(field => field.name === selectedNode);
+    return field?.destinationName ?? selectedNode;
+  };
+
   const renderCurrentStep = () => {
     if (configurationOnly && currentStep === 1) {
-      return connectorSpecification ? (
+      return connectorSpecification && selectedConnector ? (
         <ConfigurationStep
+          connector={selectedConnector}
           connectorSpecification={connectorSpecification}
           onConfigurationChange={handleConfigurationChange}
           onValidationChange={handleConfigurationValidationChange}
@@ -231,6 +266,23 @@ export function ConnectorEditForm({
           loading={loadingSpecification}
         />
       ) : null;
+    }
+
+    if (mode === 'fields-only') {
+      switch (currentStep) {
+        case 1:
+          return selectedNode && connectorFields ? (
+            <FieldsSelectionStep
+              connectorFields={connectorFields}
+              selectedField={selectedNode}
+              selectedFields={selectedFields}
+              onFieldToggle={handleFieldToggle}
+              onSelectAllFields={handleSelectAllFields}
+            />
+          ) : null;
+        default:
+          return null;
+      }
     }
 
     switch (currentStep) {
@@ -242,11 +294,15 @@ export function ConnectorEditForm({
             loading={loading}
             error={error}
             onConnectorSelect={handleConnectorSelect}
+            onConnectorDoubleClick={() => {
+              setCurrentStep(prev => (prev < totalSteps ? prev + 1 : prev));
+            }}
           />
         );
       case 2:
         return selectedConnector && connectorSpecification ? (
           <ConfigurationStep
+            connector={selectedConnector}
             connectorSpecification={connectorSpecification}
             onConfigurationChange={handleConfigurationChange}
             onValidationChange={handleConfigurationValidationChange}
@@ -259,7 +315,7 @@ export function ConnectorEditForm({
           <NodesSelectionStep
             connectorFields={connectorFields}
             selectedField={selectedNode}
-            connectorName={selectedConnector.title ?? selectedConnector.name}
+            connectorName={selectedConnector.displayName}
             loading={loadingFields}
             onFieldSelect={handleFieldSelect}
           />
@@ -275,14 +331,14 @@ export function ConnectorEditForm({
           />
         ) : null;
       case 5:
-        return (
+        return selectedNode && connectorFields ? (
           <TargetSetupStep
             dataStorageType={dataStorageType}
-            selectedNode={selectedNode}
+            destinationName={getDestinationName(connectorFields, selectedNode)}
             target={target}
             onTargetChange={handleTargetChange}
           />
-        );
+        ) : null;
       default:
         return null;
     }
@@ -312,6 +368,14 @@ export function ConnectorEditForm({
                 storage: existingConnector?.storage ?? {
                   fullyQualifiedName: existingConnector?.storage.fullyQualifiedName ?? '',
                 },
+              });
+            } else if (mode === 'fields-only' && existingConnector) {
+              onSubmit({
+                source: {
+                  ...existingConnector.source,
+                  fields: selectedFields,
+                },
+                storage: existingConnector.storage,
               });
             } else if (selectedConnector && target) {
               onSubmit({

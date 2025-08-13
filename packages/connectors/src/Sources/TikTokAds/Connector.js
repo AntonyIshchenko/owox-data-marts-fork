@@ -6,12 +6,12 @@
  */
 
 var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "tiktok_ads_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -190,7 +190,9 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         }
       }
 
-      this.config.updateLastRequstedDate(currentDate);
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
 
@@ -217,8 +219,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       // Create storage instance (Google Sheets is the default storage)
       this.storages[nodeName] = new globalThis[ this.storageName ](
         this.config.mergeParameters({ 
-          DestinationSheetName: { value: nodeName },
-          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName},
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName},
           currentValues: { 
             // Pass any values that might be needed for default values
             advertiser_id: this.source.currentAdvertiserId
