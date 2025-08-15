@@ -37,6 +37,9 @@ jobs:
       - name: Update package-lock.json
         run: npm run clean:reinstall
 
+      - name: Format package.json files
+        run: prettier --write apps/backend/package.json apps/owox/package.json packages/connector-runner/package.json packages/connectors/package.json
+
       - name: Commit fixed changelogs
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
