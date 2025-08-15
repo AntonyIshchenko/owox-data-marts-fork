@@ -45,6 +45,9 @@ jobs:
         if: steps.changesets.outputs.hasChangesets == 'true'
         run: npm run clean:reinstall
 
+      - name: Format package.json files
+        run: prettier --write apps/backend/package.json apps/owox/package.json packages/connector-runner/package.json packages/connectors/package.json
+
       - name: Commit fixed changelogs
         if: steps.changesets.outputs.hasChangesets == 'true'
         run: |
