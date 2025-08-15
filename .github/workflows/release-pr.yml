@@ -27,11 +27,14 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
       - name: Create or update release PR
         uses: changesets/action@v1
         id: changesets
+
+      - name: Format package.json files
+        run: npm run format:packages
 
       - name: Fix changelogs headings
         if: steps.changesets.outputs.hasChangesets == 'true'
