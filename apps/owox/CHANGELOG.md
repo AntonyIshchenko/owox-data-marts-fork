@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-### Minor Changes
+### Minor Changes 0.5.0
 
 - 2f2d4bf: # Add manual backfill functionality for data mart connectors
   - Added support for manual connector runs with custom payload parameters
@@ -52,7 +52,7 @@
   - Moved field descriptions to tooltips.
   - Used field labels as titles instead of field names.
 
-### Patch Changes
+### Patch Changes 0.5.0
 
 - @owox/backend@0.5.0
 
@@ -157,6 +157,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -164,6 +165,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
