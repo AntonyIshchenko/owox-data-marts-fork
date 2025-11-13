@@ -10,6 +10,8 @@ export function mapDataMartListFromDto(datamartsDto: DataMartListResponseDto): D
     storageType: dmart.storage.type,
     storageTitle: dmart.storage.title || undefined,
     definitionType: dmart.definitionType,
+    triggersCount: dmart.triggersCount,
+    reportsCount: dmart.reportsCount,
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
     definition: dmart.definition,

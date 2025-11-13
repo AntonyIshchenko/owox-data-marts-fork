@@ -5,9 +5,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   getFilteredRowModel,
-  type SortingState,
 } from '@tanstack/react-table';
-import { useColumnVisibility } from '../../hooks';
 import {
   Table,
   TableBody,
@@ -17,11 +15,10 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 import { getScheduledTriggerColumns } from './columns';
-import { TableToolbar } from './TableToolbar';
 import { TablePagination } from './TablePagination';
-import { useTableFilter } from './hooks/useTableFilter';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface ScheduledTriggerTableProps {
   triggers: ScheduledTrigger[];
@@ -36,12 +33,7 @@ export function ScheduledTriggerTable({
   onEditTrigger,
   onDeleteTrigger,
 }: ScheduledTriggerTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'type', desc: false }]);
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
-
-  const handleOpenFormSheet = useCallback(() => {
-    setIsFormSheetOpen(true);
-  }, []);
 
   const handleCloseFormSheet = useCallback(() => {
     setIsFormSheetOpen(false);
@@ -63,7 +55,11 @@ export function ScheduledTriggerTable({
     [onEditTrigger, handleDeleteClick]
   );
 
-  const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-scheduled-triggers',
+    defaultSortingColumn: 'type',
+  });
 
   const table = useReactTable<ScheduledTrigger>({
     data: triggers,
@@ -79,9 +75,6 @@ export function ScheduledTriggerTable({
     enableColumnResizing: false,
   });
 
-  // Table filter hook
-  const { value: filterValue, onChange: handleFilterChange } = useTableFilter(table);
-
   const handlePreviousClick = useCallback(() => {
     table.previousPage();
   }, [table]);
@@ -91,18 +84,10 @@ export function ScheduledTriggerTable({
   }, [table]);
 
   // Generate unique IDs for accessibility
-  const searchInputId = 'scheduled-triggers-search-input';
   const tableId = 'scheduled-triggers-table';
 
   return (
     <>
-      <TableToolbar
-        table={table}
-        searchInputId={searchInputId}
-        onAddTrigger={handleOpenFormSheet}
-        filterValue={filterValue}
-        onFilterChange={handleFilterChange}
-      />
       <div className='dm-card-table-wrap'>
         <Table id={tableId} className='dm-card-table' role='table' aria-label='Scheduled Triggers'>
           <TableHeader className='dm-card-table-header'>

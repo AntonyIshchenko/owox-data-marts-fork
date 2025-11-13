@@ -1,7 +1,7 @@
 {
   "name": "owox",
   "description": "OWOX Data Marts CLI: Simple command-line interface to start the OWOX Data Marts application with backend and frontend components.",
-  "version": "0.4.0",
+  "version": "0.12.0",
   "publishConfig": {
     "access": "public"
   },
@@ -14,9 +14,15 @@
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
     "@owox/backend": "*",
+    "@owox/idp-better-auth": "*",
+    "@owox/idp-owox": "*",
+    "@owox/idp-protocol": "*",
+    "@owox/internal-helpers": "*",
+    "@owox/web": "*",
     "find-process": "^1.4.10"
   },
   "peerDependencies": {
+    "zod": "^3.25.67",
     "express": "^5"
   },
   "devDependencies": {
@@ -64,15 +70,30 @@
   },
   "repository": "OWOX/owox-data-marts",
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc",
+    "build:backend": "npm run build -w @owox/backend --prefix ../..",
+    "build:clean": "shx rm -rf dist oclif.manifest.json tsconfig.tsbuildinfo",
+    "build:dep": "npm run build:internal-helpers && npm run build:web && npm run build:idp-protocol && npm run build:idp-better-auth && npm run build:idp-owox && npm run build:backend",
+    "build:web": "npm run build -w @owox/web --prefix ../..",
+    "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
+    "build:idp-better-auth": "npm run build -w @owox/idp-better-auth --prefix ../..",
+    "build:idp-owox": "npm run build -w @owox/idp-owox --prefix ../..",
+    "build:internal-helpers": "npm run build -w @owox/internal-helpers --prefix ../..",
+    "dev": "node ./bin/run.js serve -e ../../.env",
     "lint": "eslint . --config ./eslint.config.mjs",
+    "lint:fix": "eslint . --config ./eslint.config.mjs --fix",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
-    "format": "prettier --write \"**/*.{ts,js,json}\"",
-    "format:check": "prettier --check \"**/*.{ts,js,json}\"",
+    "migrations:up": "node ./bin/run.js migrations up -e ../../.env",
+    "migrations:down": "node ./bin/run.js migrations down -e ../../.env",
+    "migrations:status": "node ./bin/run.js migrations status -e ../../.env",
+    "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "prebuild": "npm run build:clean && npm run build:dep",
     "prepack": "oclif manifest",
     "prepublishOnly": "npm run lint",
-    "test": "npm run build && oclif manifest &&mocha --forbid-only \"test/**/*.test.ts\"",
+    "pretest": "oclif manifest",
+    "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
   },
   "types": "dist/index.d.ts"

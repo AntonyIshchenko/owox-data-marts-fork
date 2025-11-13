@@ -5,6 +5,7 @@ import { RunReportService } from '../../../use-cases/run-report.service';
 import { ScheduledTriggerType } from '../../enums/scheduled-trigger-type.enum';
 import { ScheduledTriggerProcessor } from '../../interfaces/scheduled-trigger-processor.interface';
 import { isScheduledReportRunConfig } from '../../scheduled-trigger-config.guards';
+import { RunType } from '../../../../common/scheduler/shared/types';
 
 @Injectable()
 export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
@@ -13,7 +14,7 @@ export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
 
   constructor(private readonly runReportService: RunReportService) {}
 
-  async process(trigger: DataMartScheduledTrigger): Promise<void> {
+  async process(trigger: DataMartScheduledTrigger, signal: AbortSignal): Promise<void> {
     this.logger.log(`Processing trigger ${trigger.id}`);
 
     if (trigger.type !== this.type) {
@@ -27,9 +28,10 @@ export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
     const runReportCommand = {
       reportId: trigger.triggerConfig.reportId,
       userId: trigger.createdById,
+      runType: RunType.scheduled,
     } as RunReportCommand;
 
-    await this.runReportService.run(runReportCommand);
+    await this.runReportService.run(runReportCommand, signal);
     this.logger.log(`Trigger ${trigger.id} processed`);
   }
 }

@@ -9,8 +9,8 @@ class AbstractStorage {
   
   //---- constructor -------------------------------------------------
     /**
-     * Asbstract class making Google Sheets data active in Apps Script to simplity read/write operations
-     * @param config (object) instance of Sheet
+     * Abstract class for storage operations providing common methods for data persistence
+     * @param config (object) instance of AbstractConfig
      * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
@@ -40,6 +40,15 @@ class AbstractStorage {
     }
     //----------------------------------------------------------------
     
+
+  //---- init --------------------------------------------------------
+    /**
+     * Initializing storage
+     */
+  async init() {
+    throw new Error("Method init() has to be implemented in a child class of AbstractStorage");
+  }
+  //----------------------------------------------------------------
   //---- getUniqueKeyByRecordFields ----------------------------------
     /**
      * Calculcating unique key based on this.uniqueKeyColumns
@@ -112,12 +121,13 @@ class AbstractStorage {
     
   //---- saveData ----------------------------------------------------
     /**
-     * Saving data to a storage. Has to be implemented in 
+     * Saving data to a storage. Has to be implemented in child class as async method.
      * @param {data} array of assoc objects with records to save
+     * @returns {Promise<void>}
      */
-    saveData(data) {
-    
-      throw new Error("Method saveDate() has to be implemented in a child class of AbstractStorage");
+    async saveData(data) {
+
+      throw new Error("Method saveData() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
   
@@ -144,7 +154,7 @@ class AbstractStorage {
         // if import is already in progress skip this run in order to avoid dublication 
         if( this.config.isInProgress() ) {
         // add retry
-          this.config.logMessage("⚠️ Unable to start cleanup because import is in progress");
+          this.config.logMessage("Unable to start cleanup because import is in progress");
           this.config.addWarningToCurrentStatus();
     
     
@@ -157,7 +167,7 @@ class AbstractStorage {
         } else {
     
           this.config.handleStatusUpdate({ status: EXECUTION_STATUS.CLEANUP_IN_PROGRESS });
-          this.config.logMessage(`🧹 Start cleaning expired rows`, true);
+          this.config.logMessage(`Start cleaning expired rows`, true);
     
           let deletedRows = 0;
           let maxDate = new Date();
@@ -192,13 +202,13 @@ class AbstractStorage {
           
         }
     
-        this.config.logMessage("✅ Cleanup is finished");
+        this.config.logMessage("Cleanup is finished");
         this.config.handleStatusUpdate({ status: EXECUTION_STATUS.CLEANUP_DONE });
     
     
       } catch( error ) {
     
-        this.config.logMessage(`❌ ${error.message}`);
+        this.config.logMessage(`${error.message}`);
         throw error;
     
       }
@@ -222,15 +232,34 @@ class AbstractStorage {
       return record;
     }
     //----------------------------------------------------------------
-  
-  //---- areHeadersNeeded --------------------------------------------
+
+  //---- getSelectedFields -------------------------------------------
     /**
-     * Checks if storage needs headers to be added
-     * By default returns false, should be overridden in child classes if needed
-     * @returns {boolean} true if headers need to be added, false otherwise
+     * Parse Fields config value and return array of selected field names
+     * @returns {Array<string>} Array of selected field names
      */
-    areHeadersNeeded() {
-      return false;
+    getSelectedFields() {
+      if (!this.config.Fields || !this.config.Fields.value) {
+        return [];
+      }
+      
+      return this.config.Fields.value.split(',')
+        .map(field => field.trim())
+        .filter(field => field !== '')
+        .map(field => field.split(' '))
+        .filter(field => field.length === 2)
+        .map(field => field[1]);
+    }
+    //----------------------------------------------------------------
+
+  //---- getColumnType -----------------------------------------------
+    /**
+     * Get column type for storage from schema
+     * @param {string} columnName - Name of the column
+     * @returns {string} Storage-specific column type
+     */
+    getColumnType(columnName) {
+      return 'string';
     }
     //----------------------------------------------------------------
 

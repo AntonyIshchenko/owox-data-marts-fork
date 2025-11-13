@@ -1,76 +1,118 @@
-# Developer Guide for Custom Data Source Integrations
+# How to Contribute
 
-There are thousands of different data sources, with their APIs constantly changing, making it impossible to develop integrations for all possible use cases.
-Therefore, the goal of this guide is to provide clear and understandable steps to adjust existing integrations and develop new ones.
+There are thousands of data sources and their APIs constantly evolve, so no single team can build and maintain every connector. Within the OWOX Data Marts project we collaborate as a community to share this responsibility, and this guide explains how you can work with us to adjust existing integrations and create new ones.
 
-## Google Sheets Files Structure
+When contributing, please keep the wider community in mind. We review pull requests for technical quality and for how broadly the connector can be applied beyond the contributor's specific scenario. If you plan work that cannot be contributed back, be ready to maintain your own fork. We highly recommend designing every connector so that it can be upstreamed when requirements allow.
 
-The Google Sheets document contains the configuration in the Config sheet, control options in the menu, and an attached Apps Script `Code.gs`. The purpose of this document is to provide a user interface for Google Sheets users and to make relevant calls to library's objects. Feel free to make a copy of the Google Sheets document and modify `Code.gs` as needed.
+## Prerequisites
 
-![Google Sheets Files Schema](res/google-sheets-files-structure.svg)
+Set up the following tools locally before you start developing:
 
-To make the integration work, you need to connect the appropriate library to `Code.gs`. Google Sheets templates for specific data sources already have the required library connected. If you create a blank Google Sheets document, you will need to connect a library to `Code.gs` manually.
+- Node.js 22.16.0 or later (see `engines.node` requirement in root `package.json`)
+- npm 10 or later (ships with the Node 22 installer)
+- Git (any recent 2.x release) for working with the repository
 
-Library files connected to templates are updated automaticaly based on Github repository. So to make your own changes you need to make a library copy first.
+After installing the tools, run `npm install` from the repository root to install all workspace dependencies, including those needed for this package.
 
-![Google Sheets Adding Apps Script Library](res/google-sheets-adding-apps-script-library.png)
+## Architecture Overview
 
-> ℹ️ **Note:** It is highly recommended that you use the UTC time zone only to avoid unexpected data discrepancies. V8 runtime is a mandatory requirement, not an option.
+The `@owox/connectors` package is a Node.js library that bundles data source connectors and storage implementations. The package automatically discovers all connectors in the `src/Sources/` directory.
 
-Library contatins two types of files:
+### Key Components
 
-- `Core/*` — Core scripts, which are the same for all integrations, are primarily written in TypeScript (at least, it will be soon!)
-- `Sources/*` — Data source-specific files are primarily written in Apps Script. You may need to modify them to suit your custom requirements.
+- **Core** (`src/Core/`) — Abstract base classes and utilities shared across all connectors (TypeScript/JavaScript)
+- **Sources** (`src/Sources/[SOURCE_NAME]/`) — Data source-specific implementations
+- **Storages** (`src/Storages/`) — Storage implementations for persisting data
+- **Constants** (`src/Constants/`) — Shared constants and enumerations
+- **Configs** (`src/Configs/`) — Configuration utilities
 
-![Google Sheets Files Schema](res/google-sheets-files-links.png)
+### Build System
 
-## Creating a New Integation
+The build system automatically:
 
-To create integration with a new data source, do the following:
+1. Discovers all connectors in `src/Sources/*/`
+2. Bundles each connector with its dependencies into isolated modules
+3. Generates a single distributable package with all connectors
+4. Creates manifests with metadata for each connector
 
-1. Make a copy of Google Sheets and Apps Script documents from [this folder](https://drive.google.com/drive/u/0/folders/1Yy2QOb0B6-DcKaowmjH3jxtdi8q2KtoU)
-2. Replace the library added to Google Sheets with the new Apps Script created from the template
-3. Replace `YOUR_DATA_SOURCE` in source code with the name of the data source you are creating the integration with
-4. Create methods code according to the integration requirements. Please refer to the UML section for detailed information.
-5. Create a new folder integration based on `packages/connectors/src/Templates` template.
-6. [Add all relevant files](https://docs.github.com/en/repositories/working-with-files/managing-files/adding-a-file-to-a-repository) to the created folder. You can also do this from a web browser
-7. Specify the correct title of your data source in the `manifest.json` file.
+**No manual registration is required** — just create your connector files in the correct location.
 
-## UML
+## Creating a New Source
 
-![Google Sheets UML](res/google-sheets-uml.svg)
+For detailed step-by-step instructions on creating a new source, see [Creating a New Source](./CREATING_CONNECTOR.md).
+
+## Architecture Concepts
+
+![Architecture Concepts](./res/architecture-uml.svg)
 
 ### Connector
 
-`Connector` is responsible for data transfer orchestrations. There are three parameters required to create a `Connector`: `Config`, `Source`, and `Storage`.
+The `Connector` class orchestrates the data transfer process. It requires three components:
 
-All data connectors are stored in `src/Sources/[SOURCE_NAME]/Connector.js`.
+1. **Config** — configuration parameters and validation
+2. **Source** — data fetching logic
+3. **Storage** — data persistence (optional, can be null)
 
-It must be an instance of `AbstractConnector`
+Key responsibilities:
+
+- Validate configuration parameters
+- Calculate date ranges for incremental/backfill imports
+- Coordinate between Source and Storage
+- Handle status updates and logging
+- Implement retry logic for the entire import process
+
+All connectors must extend `AbstractConnector` (in `src/Core/AbstractConnector.js`).
 
 ### Source
 
-`Source` is responsible for fetching data from the Data Source. This object has a `fetchData()` method, which is required for data source-specific implementation.
-It must be an instance of `AbstractSource`
+The `Source` class is responsible for fetching data from the external API. It must implement:
+
+- `fetchData(startDate, endDate)` — fetch data for a date range
+- `isValidToRetry(error)` — determine if an error is transient (optional)
+
+Helper methods available:
+
+- `urlFetchWithRetry(url, options)` — HTTP fetch with automatic retry
+- `calculateBackoff(attemptNumber)` — exponential backoff calculation
+- `getFieldsSchema()` — return available fields for the data source
+
+All sources must extend `AbstractSource` (in `src/Core/AbstractSource.js`).
 
 ### Storage
 
-`Storage` is responsible for adding new data and updating existing data in storage. Currently, only Google Sheets is supported as a data storage option.
+The `Storage` class handles data persistence. It must implement:
 
-It must be an instance of `AbstractStorage`
+- `saveData(data)` — persist data to storage
+- `areHeadersNeeded()` — check if headers need to be created
+- `addHeader(columns)` — create table/sheet headers
+
+All storages must extend `AbstractStorage` (in `src/Core/AbstractStorage.js`).
+
+### Config
+
+Configuration objects handle:
+
+- Parameter definition and validation
+- Status tracking (in_progress, done, error)
+- Logging and error handling
+- State persistence (LastRequestedDate, LastImportDate)
+
+Configuration classes extend `AbstractConfig` (in `src/Core/AbstractConfig.js`).
 
 ## Legal
 
-To clarify the intellectual property license granted with Contributions from any person or entity, we must have on file a signed Contributor License Agreement ("CLA") from each Contributor, indicating agreement with the license terms.
+The `@owox/connectors` package is distributed under the MIT License. By submitting a contribution to this package, you affirm that you have the right to do so and that your work will be released under the same MIT License.
 
-This agreement is for your protection as a Contributor as well as the protection of us and the users of owox-data-marts. It does not change your rights to use your own Contributions for any other purpose.
+To clarify the intellectual property rights granted with each contribution, we also require a signed Contributor License Agreement ("CLA") from every contributor. This protects you as the author, the OWOX team that stewards the project, and the community that depends on these connectors, ensuring everyone can rely on consistent MIT terms within this package.
 
-For more details, please review the full [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors).
+For more details, review the full [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors).
 
-Pull Request authors must sign [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors). It will show up in an automated comment after you create a PR.
-
-If you cannot or do not want to sign this CLA (e.g., your employment contract for your employer may not allow this), **you should not submit a PR**. Instead, please open an issue, and someone else can do the work.
+Pull request authors must sign the [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors). The signing link appears automatically once you open a PR. If you cannot sign the CLA (for example, due to employment restrictions), **do not submit a PR**. Instead, please open an issue so that someone else can help.
 
 ## Questions
 
-Got a questions? Feel free to ask the community [in the Discussion section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
+Got a question? Feel free to ask the community:
+
+- Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
+- Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
+- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ)

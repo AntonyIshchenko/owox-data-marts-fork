@@ -1,8 +1,7 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useEffect, useState, useCallback } from 'react';
-
-import { DataStorageType } from '../../../../data-storage/shared/model/types';
+import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
   ConfigurationStep,
@@ -11,8 +10,9 @@ import {
   TargetSetupStep,
 } from './steps';
 import { StepNavigation } from './components';
-import type { ConnectorConfig } from '../../../../data-marts/edit/model';
-import type { ConnectorFieldsResponseApiDto } from '../../../shared/api/types/response/connector.response.dto';
+import type { ConnectorConfig } from '../../../../data-marts/edit';
+import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
+import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -20,6 +20,9 @@ interface ConnectorEditFormProps {
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
   mode?: 'full' | 'configuration-only' | 'fields-only';
+  initialStep?: number;
+  preselectedConnector?: string | null;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function ConnectorEditForm({
@@ -28,7 +31,11 @@ export function ConnectorEditForm({
   configurationOnly = false,
   existingConnector = null,
   mode = 'full',
+  initialStep,
+  preselectedConnector,
+  onDirtyChange,
 }: ConnectorEditFormProps) {
+  const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
@@ -49,6 +56,10 @@ export function ConnectorEditForm({
     fetchConnectorSpecification,
     fetchConnectorFields,
   } = useConnector();
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
@@ -87,6 +98,35 @@ export function ConnectorEditForm({
     },
     [loadedFields, fetchConnectorFields]
   );
+
+  useEffect(() => {
+    if (!preselectedConnector) return;
+    if (selectedConnector) return;
+    if (connectors.length === 0) return;
+
+    const found = connectors.find(c => c.name === preselectedConnector);
+    if (found) {
+      setSelectedConnector(found);
+      // set default configuration if existing connector wasn't provided
+      // ssetConnectorConfiguration(found ? {} : {});
+      // set step to requested initialStep (or 2 by default)
+      setCurrentStep(initialStep ?? 2);
+      // if in full flow ensure fields/spec are loaded:
+      void loadSpecificationSafely(found.name);
+      if (!configurationOnly && mode !== 'fields-only') {
+        void loadFieldsSafely(found.name);
+      }
+    }
+  }, [
+    preselectedConnector,
+    connectors,
+    selectedConnector,
+    initialStep,
+    configurationOnly,
+    mode,
+    loadSpecificationSafely,
+    loadFieldsSafely,
+  ]);
 
   // Regular modes initialization
   useEffect(() => {
@@ -140,6 +180,7 @@ export function ConnectorEditForm({
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
+    setIsDirty(true);
     setLoadedSpecifications(prev => {
       const newSet = new Set(prev);
       newSet.delete(connector.name);
@@ -152,6 +193,7 @@ export function ConnectorEditForm({
   const handleFieldSelect = (fieldName: string) => {
     setSelectedNode(fieldName);
     setSelectedFields([]);
+    setIsDirty(true);
   };
 
   const handleFieldToggle = (fieldName: string, isChecked: boolean) => {
@@ -160,6 +202,7 @@ export function ConnectorEditForm({
     } else {
       setSelectedFields(prev => prev.filter(f => f !== fieldName));
     }
+    setIsDirty(true);
   };
 
   const handleSelectAllFields = (fieldNames: string[], isSelected: boolean) => {
@@ -171,16 +214,19 @@ export function ConnectorEditForm({
     } else {
       setSelectedFields(prev => prev.filter(fieldName => !fieldNames.includes(fieldName)));
     }
+    setIsDirty(true);
   };
 
   const handleTargetChange = (
     newTarget: { fullyQualifiedName: string; isValid: boolean } | null
   ) => {
     setTarget(newTarget);
+    setIsDirty(true);
   };
 
   const handleConfigurationChange = useCallback((configuration: Record<string, unknown>) => {
     setConnectorConfiguration(configuration);
+    setIsDirty(true);
   }, []);
 
   const handleConfigurationValidationChange = useCallback((isValid: boolean) => {
@@ -190,7 +236,7 @@ export function ConnectorEditForm({
   useEffect(() => {
     if (connectorSpecification) {
       const hasRequiredFields = connectorSpecification.some(
-        spec => spec.required && spec.showInUI !== false && spec.name !== 'Fields'
+        spec => spec.required && spec.name !== 'Fields'
       );
       if (!hasRequiredFields) {
         setConfigurationIsValid(true);
@@ -264,6 +310,7 @@ export function ConnectorEditForm({
           onValidationChange={handleConfigurationValidationChange}
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
+          isEditingExisting={Boolean(existingConnector?.source.configuration.length)}
         />
       ) : null;
     }
@@ -271,8 +318,9 @@ export function ConnectorEditForm({
     if (mode === 'fields-only') {
       switch (currentStep) {
         case 1:
-          return selectedNode && connectorFields ? (
+          return selectedConnector && selectedNode && connectorFields ? (
             <FieldsSelectionStep
+              connector={selectedConnector}
               connectorFields={connectorFields}
               selectedField={selectedNode}
               selectedFields={selectedFields}
@@ -308,12 +356,14 @@ export function ConnectorEditForm({
             onValidationChange={handleConfigurationValidationChange}
             initialConfiguration={connectorConfiguration}
             loading={loadingSpecification}
+            isEditingExisting={false}
           />
         ) : null;
       case 3:
         return selectedConnector && connectorFields ? (
           <NodesSelectionStep
             connectorFields={connectorFields}
+            connector={selectedConnector}
             selectedField={selectedNode}
             connectorName={selectedConnector.displayName}
             loading={loadingFields}
@@ -321,8 +371,9 @@ export function ConnectorEditForm({
           />
         ) : null;
       case 4:
-        return selectedNode && connectorFields ? (
+        return selectedConnector && selectedNode && connectorFields ? (
           <FieldsSelectionStep
+            connector={selectedConnector}
             connectorFields={connectorFields}
             selectedField={selectedNode}
             selectedFields={selectedFields}
@@ -335,6 +386,7 @@ export function ConnectorEditForm({
           <TargetSetupStep
             dataStorageType={dataStorageType}
             destinationName={getDestinationName(connectorFields, selectedNode)}
+            connectorName={selectedConnector?.displayName ?? ''}
             target={target}
             onTargetChange={handleTargetChange}
           />
@@ -345,9 +397,10 @@ export function ConnectorEditForm({
   };
 
   return (
-    <div className='flex h-full flex-col p-4'>
-      <div className='mb-6 flex-1 overflow-x-visible overflow-y-auto'>{renderCurrentStep()}</div>
-      <div className='bg-background -mx-4 border-t px-4 pt-4'>
+    <AppWizard>
+      <AppWizardLayout>{renderCurrentStep()}</AppWizardLayout>
+
+      <AppWizardActions variant='horizontal'>
         <StepNavigation
           currentStep={currentStep}
           totalSteps={totalSteps}
@@ -390,9 +443,10 @@ export function ConnectorEditForm({
                 },
               });
             }
+            setIsDirty(false);
           }}
         />
-      </div>
-    </div>
+      </AppWizardActions>
+    </AppWizard>
   );
 }

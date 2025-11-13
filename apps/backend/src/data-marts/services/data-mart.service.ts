@@ -15,19 +15,14 @@ export class DataMartService {
     private readonly dataMartSchemaMergerFacade: DataMartSchemaMergerFacade
   ) {}
 
-  async getByIdAndProjectIdAndUserId(
-    id: string,
-    projectId: string,
-    userId: string
-  ): Promise<DataMart> {
+  async getByIdAndProjectId(id: string, projectId: string): Promise<DataMart> {
     const entity = await this.dataMartRepository.findOne({
-      where: { id, projectId, createdById: userId },
+      where: { id, projectId },
+      relations: ['connectorState'],
     });
 
     if (!entity) {
-      throw new NotFoundException(
-        `DataMart with id ${id} and projectId ${projectId} and userId ${userId} not found`
-      );
+      throw new NotFoundException(`DataMart with id ${id} and projectId ${projectId} not found`);
     }
 
     return entity;
@@ -37,8 +32,8 @@ export class DataMartService {
     return this.dataMartRepository.find({ where: { storage: { id: storage.id } } });
   }
 
-  async actualizeSchema(id: string, projectId: string, userId: string): Promise<DataMart> {
-    const dataMart = await this.getByIdAndProjectIdAndUserId(id, projectId, userId);
+  async actualizeSchema(id: string, projectId: string): Promise<DataMart> {
+    const dataMart = await this.getByIdAndProjectId(id, projectId);
     await this.actualizeSchemaInEntity(dataMart);
     await this.dataMartRepository.save(dataMart);
     return dataMart;

@@ -17,11 +17,7 @@ export class PublishDataMartService {
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId,
-      command.userId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     if (dataMart.status !== DataMartStatus.DRAFT) {
       throw new BusinessViolationException(`DataMart is not in ${DataMartStatus.DRAFT} status`);
@@ -31,11 +27,8 @@ export class PublishDataMartService {
       throw new BusinessViolationException('DataMart has no definition');
     }
 
-    await this.definitionValidatorFacade.checkIsValid(dataMart);
-
-    if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
-      // connectors can change data mart schema only after its run, not on publish
-      await this.dataMartService.actualizeSchemaInEntity(dataMart);
+    if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
     dataMart.status = DataMartStatus.PUBLISHED;

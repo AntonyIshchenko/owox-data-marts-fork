@@ -8,11 +8,10 @@ import type {
 } from '../../shared/model/types/data-mart-report.ts';
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
 import { DestinationTypeConfigEnum, useReport } from '../../shared';
+import type { DataDestination } from '../../../../data-destination/shared/model/types';
 
-// Define the form schema
+// Define the form schema - simplified for editing existing reports
 const lookerStudioReportFormSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  dataDestinationId: z.string().min(1, 'Destination is required'),
   cacheLifetime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
 });
 
@@ -23,12 +22,14 @@ interface UseLookerStudioReportFormProps {
   initialReport?: DataMartReport;
   dataMartId: string;
   onSuccess?: () => void;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export function useLookerStudioReportForm({
   initialReport,
   dataMartId,
   onSuccess,
+  preSelectedDestination,
 }: UseLookerStudioReportFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const { createReport, updateReport } = useReport();
@@ -36,8 +37,6 @@ export function useLookerStudioReportForm({
   const form = useForm<LookerStudioReportFormData>({
     resolver: zodResolver(lookerStudioReportFormSchema),
     defaultValues: {
-      title: initialReport?.title ?? '',
-      dataDestinationId: initialReport?.dataDestination.id ?? '',
       cacheLifetime:
         initialReport?.destinationConfig &&
         isLookerStudioDestinationConfig(initialReport.destinationConfig)
@@ -51,23 +50,25 @@ export function useLookerStudioReportForm({
     try {
       setFormError(null);
 
-      const { title, dataDestinationId, cacheLifetime } = data;
+      const { cacheLifetime } = data;
       const destinationConfig: DestinationConfig = {
         type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG,
         cacheLifetime,
       };
 
       if (initialReport) {
+        // Only update the destination config, keep existing title and destination
         await updateReport(initialReport.id, {
-          title,
-          dataDestinationId,
+          title: `Looker Studio Report`, // Keep existing
+          dataDestinationId: initialReport.dataDestination.id, // Keep existing
           destinationConfig,
         });
       } else {
+        // This shouldn't happen in our use case, but keeping for compatibility
         await createReport({
-          title,
+          title: `Looker Studio Report`,
           dataMartId,
-          dataDestinationId,
+          dataDestinationId: preSelectedDestination?.id ?? '',
           destinationConfig,
         });
       }

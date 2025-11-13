@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useProjectRoute } from '../../../../../shared/hooks';
 import {
   type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
   getPaginationRowModel,
-  type SortingState,
   getSortedRowModel,
   type ColumnFiltersState,
   getFilteredRowModel,
-  type VisibilityState,
   type RowSelectionState,
 } from '@tanstack/react-table';
 
@@ -36,9 +35,10 @@ import {
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
 import { Check, Search, Trash2, Plus } from 'lucide-react';
-import { toast, Toaster } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -55,10 +55,18 @@ export function DataMartTable<TData, TValue>({
   refetchDataMarts,
   isLoading,
 }: DataTableProps<TData, TValue>) {
-  const navigate = useNavigate();
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
+  const { navigate, scope } = useProjectRoute();
+
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-list',
+    defaultColumnVisibility: {
+      triggersCount: false,
+      reportsCount: false,
+    },
+  });
+
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -112,7 +120,7 @@ export function DataMartTable<TData, TValue>({
                 data-slot='checkbox-indicator'
                 className='pointer-events-none flex items-center justify-center text-current transition-none'
               >
-                <Check className='size-3.5' />
+                <Check className='size-3.5 text-white' />
               </span>
             )}
           </button>
@@ -133,7 +141,7 @@ export function DataMartTable<TData, TValue>({
                 data-slot='checkbox-indicator'
                 className='pointer-events-none flex items-center justify-center text-current transition-none'
               >
-                <Check className='size-3.5' />
+                <Check className='size-3.5 text-white' />
               </span>
             )}
           </button>
@@ -163,24 +171,17 @@ export function DataMartTable<TData, TValue>({
   if (isLoading) {
     return (
       <div>
-        <Toaster />
         <CardSkeleton />
       </div>
     );
   }
 
   if (!data.length) {
-    return (
-      <div className='dm-card'>
-        <Toaster />
-        <EmptyDataMartsState />
-      </div>
-    );
+    return <EmptyDataMartsState />;
   }
 
   return (
     <div className='dm-card'>
-      <Toaster />
       {/* TOOLBAR */}
       <div className='dm-card-toolbar'>
         {/* LEFT Column */}
@@ -213,7 +214,7 @@ export function DataMartTable<TData, TValue>({
 
         {/* RIGHT Column */}
         <div className='dm-card-toolbar-right'>
-          <Link to={'/data-marts/create'}>
+          <Link to={scope('/data-marts/create')}>
             <Button variant='outline' className='dm-card-toolbar-btn-primary'>
               <Plus className='h-4 w-4' />
               New Data Mart
@@ -269,7 +270,7 @@ export function DataMartTable<TData, TValue>({
                       return;
                     }
                     const id = (row.original as { id: string }).id;
-                    void navigate(`/data-marts/${id}/data-setup`);
+                    navigate(`/data-marts/${id}/data-setup`);
                   }}
                 >
                   {row.getVisibleCells().map(cell => (

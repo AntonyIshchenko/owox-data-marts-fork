@@ -6,30 +6,104 @@
  */
 
 var GitHubConnector = class GitHubConnector extends AbstractConnector {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
+    super(config, source, null, runConfig);
 
- /**
-     * A method for calling from Root script for determining parameters needed to fetch new data.
-     */
-    startImportProcess() {
+    this.storageName = storageName;
+  }
 
-      // fetching new data from a data source
-      let data = this.source.fetchData();
+  /**
+   * Main method - entry point for the import process
+   * Processes all nodes defined in the fields configuration
+   */
+  async startImportProcess() {
+    const fields = ConnectorUtils.parseFields(this.config.Fields.value);
 
-      // there are fetched records to update
-      if( !data.length ) {      
-        
-        this.config.logMessage("ℹ️ No records have been fetched");
-        if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-          this.config.updateLastRequstedDate(endDate);
-        }
+    for (const nodeName in fields) {
+      await this.processNode({
+        nodeName,
+        fields: fields[nodeName] || []
+      });
+    }
+  }
 
-      } else {
+  /**
+   * Process a single node
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node to process
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processNode({ nodeName, fields }) {
+    if (ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName])) {
+      await this.processTimeSeriesNode({ nodeName, fields });
+    } else {
+      await this.processCatalogNode({ nodeName, fields });
+    }
+  }
 
-        this.config.logMessage(`${data.length} rows were fetched`);
-        this.storage.saveData(data);
+  /**
+   * Process a time series node
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {Object} options.storage - Storage instance
+   */
+  async processTimeSeriesNode({ nodeName, fields }) {
+    // Placeholder for future time series nodes
+    console.log(`Time series node processing not implemented for ${nodeName}`);
+  }
+  
+  /**
+   * Process a catalog node (repository, contributors, repositoryStats)
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {Object} options.storage - Storage instance
+   */
+  async processCatalogNode({ nodeName, fields }) {
+    // Fetch data from GitHub API
+    const data = await this.source.fetchData({ nodeName, fields });
 
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched` : `No records have been fetched`);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
+    }
+  }
+
+  /**
+   * Get storage instance for a node
+   * @param {string} nodeName - Name of the node
+   * @returns {Object} Storage instance
+   */
+  async getStorageByNode(nodeName) {
+    if (!("storages" in this)) {
+      this.storages = {};
+    }
+
+    if (!(nodeName in this.storages)) {
+      if (!("uniqueKeys" in this.source.fieldsSchema[nodeName])) {
+        throw new Error(`Unique keys for '${nodeName}' are not defined in the fields schema`);
       }
 
+      const uniqueFields = this.source.fieldsSchema[nodeName].uniqueKeys;
+
+      this.storages[nodeName] = new globalThis[this.storageName](
+        this.config.mergeParameters({
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
+        }),
+        uniqueFields,
+        this.source.fieldsSchema[nodeName].fields,
+        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
+      );
+
+      await this.storages[nodeName].init();
     }
+
+    return this.storages[nodeName];
+  }
 
 }

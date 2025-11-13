@@ -1,98 +1,163 @@
-import { ConsoleLogger, LogLevel } from '@nestjs/common';
+import { LoggerService } from '@nestjs/common';
+import { LoggerFactory, type Logger } from '@owox/internal-helpers';
+import * as process from 'node:process';
+import { ClsService, ClsServiceManager } from 'nestjs-cls';
+import { AUTH_CONTEXT } from '../../idp/guards/idp.guard';
 
 /**
- * Logger configuration object
+ * Custom NestJS logger service that implements the LoggerService interface
+ * and uses logger factory from @owox/internal-helpers for consistent logging
+ * across all OWOX packages.
  */
-interface LoggerConfig {
-  json: boolean;
-  colors: boolean;
-  logLevels: LogLevel[];
-}
+export class CustomLoggerService implements LoggerService {
+  private logger: Logger;
+  private context: string;
+  private cls: ClsService;
 
-const VALID_LOG_LEVELS: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'];
-
-const DEFAULT_LOG_LEVELS: LogLevel[] = ['log', 'warn', 'error'];
-
-/**
- * Validates and parses log levels from environment variable string.
- *
- * @param envLevels - Comma-separated string of log levels from environment
- * @returns Array of valid LogLevel values
- *
- * @example
- * ```typescript
- * // Valid input
- * parseLogLevels('log,warn,error') // Returns: ['log', 'warn', 'error']
- * parseLogLevels('debug,verbose') // Returns: ['debug', 'verbose']
- *
- * // Invalid/malformed input - falls back to defaults
- * parseLogLevels('invalid,log') // Returns: ['log', 'warn', 'error']
- * parseLogLevels('') // Returns: ['log', 'warn', 'error']
- * ```
- */
-function parseLogLevels(envLevels: string): LogLevel[] {
-  if (!envLevels?.trim()) {
-    return DEFAULT_LOG_LEVELS;
+  constructor(context?: string) {
+    this.context = context || 'NestJS';
+    this.logger = LoggerFactory.createNamedLogger(this.context);
+    this.cls = ClsServiceManager.getClsService();
   }
 
-  const levels = envLevels
-    .split(',')
-    .map(level => level.trim() as LogLevel)
-    .filter(level => VALID_LOG_LEVELS.includes(level));
-
-  if (levels.length === 0) {
-    return DEFAULT_LOG_LEVELS;
+  /**
+   * Create a new logger with a child context
+   * @param context - The child context
+   * @returns A new logger with the child context
+   */
+  child(context?: string): CustomLoggerService {
+    return new CustomLoggerService(this.context + '::' + context);
   }
 
-  return levels;
+  /**
+   * Write a 'log' level log.
+   */
+  log(message: unknown, context?: string): void;
+  log(message: unknown, ...optionalParams: unknown[]): void;
+  log(message: unknown, ...optionalParams: unknown[]): void {
+    const [context, ...params] = optionalParams;
+    this.logger.info(String(message), this.destructureParams(undefined, context, params));
+  }
+
+  /**
+   * Write an 'error' level log.
+   */
+  error(message: unknown, trace?: string, context?: string): void;
+  error(message: unknown, ...optionalParams: unknown[]): void;
+  error(message: unknown, ...optionalParams: unknown[]): void {
+    const [trace, context, ...params] = optionalParams;
+    this.logger.error(String(message), this.destructureParams(trace, context, params), trace);
+  }
+
+  /**
+   * Write a 'warn' level log.
+   */
+  warn(message: unknown, context?: string): void;
+  warn(message: unknown, ...optionalParams: unknown[]): void;
+  warn(message: unknown, ...optionalParams: unknown[]): void {
+    const [context, ...params] = optionalParams;
+    this.logger.warn(String(message), this.destructureParams(undefined, context, params));
+  }
+
+  /**
+   * Write a 'debug' level log.
+   */
+  debug(message: unknown, context?: string): void;
+  debug(message: unknown, ...optionalParams: unknown[]): void;
+  debug(message: unknown, ...optionalParams: unknown[]): void {
+    const [context, ...params] = optionalParams;
+    this.logger.debug(String(message), this.destructureParams(undefined, context, params));
+  }
+
+  /**
+   * Write a 'verbose' level log.
+   */
+  verbose(message: unknown, context?: string): void;
+  verbose(message: unknown, ...optionalParams: unknown[]): void;
+  verbose(message: unknown, ...optionalParams: unknown[]): void {
+    const [context, ...params] = optionalParams;
+    this.logger.trace(String(message), this.destructureParams(undefined, context, params));
+  }
+
+  /**
+   * Set log levels
+   * @param levels - levels to be set
+   */
+  setLogLevels?(_levels: string[]): void {
+    // This is called by NestJS but we handle log levels through environment variables
+    // in our LoggerFactory, so we don't need to implement this
+  }
+
+  /**
+   * Destructure the optional parameters
+   * @param optionalParams - The optional parameters
+   * @returns The destructured parameters
+   */
+  private destructureParams(
+    trace?: unknown,
+    context?: unknown,
+    params?: unknown[]
+  ): { context: string; trace: unknown; params: unknown[]; metadata: Record<string, unknown> } {
+    const output: {
+      context: string;
+      trace: unknown;
+      params: unknown[];
+      metadata: Record<string, unknown>;
+    } = {
+      context: this.context ?? '',
+      trace: undefined,
+      params: [],
+      metadata: {},
+    };
+    if (trace) {
+      switch (typeof trace) {
+        case 'string':
+          output.trace = trace;
+          break;
+        case 'object':
+          output.metadata = { ...output.metadata, ...trace };
+          break;
+        default:
+          output.params.push(trace);
+          break;
+      }
+    }
+    if (context) {
+      switch (typeof context) {
+        case 'string':
+          output.context = context;
+          break;
+        case 'object':
+          output.metadata = { ...output.metadata, ...context };
+          break;
+        default:
+          output.params.push(context);
+          break;
+      }
+    }
+    if (params && params.length > 0) {
+      for (const param of params) {
+        if (typeof param === 'object' && param !== null) {
+          output.metadata = { ...output.metadata, ...param };
+        } else if (typeof param === 'string') {
+          output.context = param;
+        }
+        output.params.push(param);
+      }
+    }
+    output.metadata.appVersion = process.env.APP_OWOX_VERSION || 'unknown';
+    const authContext = this.cls.get<Record<string, unknown>>(AUTH_CONTEXT);
+    if (authContext) {
+      output.metadata.authContext = authContext;
+    }
+
+    return output;
+  }
 }
 
 /**
- * Creates logger configuration based on environment variables.
- *
- * Environment variables:
- * - LOG_FORMAT: 'json' → JSON format (production-ready), undefined/other → Human-readable format (development)
- * - LOG_LEVELS: Comma-separated log levels (e.g., 'log,warn,error,debug'). Defaults to 'log,warn,error'
- *
- * Valid log levels: log, error, warn, debug, verbose, fatal
- *
- * This configuration is automatically applied to ensure consistent logging
- * across all application components and deployment environments.
- *
- * @returns Logger configuration object with format, colors, and log levels settings
- *
- * @example
- * ```typescript
- * // Development defaults: pretty format, basic levels
- * // No env vars needed
- * const config = createLoggerConfig();
- * // Result: { json: false, colors: true, logLevels: ['log', 'warn', 'error'] }
- *
- * // Production: JSON format, custom levels
- * // LOG_FORMAT=json
- * // LOG_LEVELS=log,warn,error,debug
- * const config = createLoggerConfig();
- * // Result: { json: true, colors: false, logLevels: ['log', 'warn', 'error', 'debug'] }
- *
- * // Development with debug enabled
- * // LOG_LEVELS=log,warn,error,debug,verbose
- * const config = createLoggerConfig();
- * // Result: { json: false, colors: true, logLevels: ['log', 'warn', 'error', 'debug', 'verbose'] }
- * ```
- */
-function createLoggerConfig(): LoggerConfig {
-  const useJsonFormat = process.env.LOG_FORMAT === 'json';
-  const logLevels = parseLogLevels(process.env.LOG_LEVELS || '');
-
-  return {
-    json: useJsonFormat,
-    colors: !useJsonFormat,
-    logLevels,
-  };
-}
-
-/**
- * Creates a configured logger instance that supports both JSON and pretty formatting.
+ * Creates a configured logger instance that uses Pino logger from @owox/internal-helpers
+ * for consistent logging across all OWOX packages.
  *
  * This logger is designed for multiple usage contexts:
  *
@@ -113,7 +178,7 @@ function createLoggerConfig(): LoggerConfig {
  * Can be used directly in any TypeScript/Node.js context that needs logging.
  *
  * @param context - Optional context name that appears in log entries to identify the source
- * @returns Configured ConsoleLogger instance with JSON/pretty format support
+ * @returns Configured CustomLoggerService instance from @owox/internal-helpers
  *
  * @example
  * ```typescript
@@ -142,6 +207,6 @@ function createLoggerConfig(): LoggerConfig {
  *
  * @see {@link https://docs.nestjs.com/techniques/logger NestJS Logger Documentation}
  */
-export function createLogger(context?: string): ConsoleLogger {
-  return new ConsoleLogger(context || '', createLoggerConfig());
+export function createLogger(context?: string): CustomLoggerService {
+  return new CustomLoggerService(context);
 }

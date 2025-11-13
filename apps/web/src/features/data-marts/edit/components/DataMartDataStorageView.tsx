@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage.ts';
-import { DataStorageType } from '../../../data-storage';
+import { DataStorageType, isDataStorageConfigValid } from '../../../data-storage';
 import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataStorageConfigSheet } from '../../../data-storage/edit';
 import { DataStorageProvider } from '../../../data-storage/shared/model/context';
-import { toast, Toaster } from 'react-hot-toast';
+import { AlertTriangle } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 interface DataMartDataStorageViewProps {
@@ -27,20 +27,15 @@ export const DataMartDataStorageView = ({
   };
 
   const getSubtitle = () => {
-    // Check if necessary config fields exist based on storage type
-    const hasRequiredFields = () => {
-      switch (dataStorage.type) {
-        case DataStorageType.GOOGLE_BIGQUERY:
-          return Boolean(dataStorage.config.projectId && dataStorage.config.location);
-        case DataStorageType.AWS_ATHENA:
-          return Boolean(dataStorage.config.region && dataStorage.config.outputBucket);
-        default:
-          return false;
-      }
-    };
+    const storageIsValid = isDataStorageConfigValid(dataStorage);
 
-    if (!hasRequiredFields()) {
-      return 'Storage configuration is incomplete';
+    if (!storageIsValid) {
+      return (
+        <div className='flex items-center space-x-2 text-sm'>
+          <AlertTriangle className='h-4 w-4 text-red-500' />
+          <span className='text-red-500'>Storage configuration is incomplete</span>
+        </div>
+      );
     }
 
     const formatParam = (label: string, value: string) => {
@@ -100,7 +95,6 @@ export const DataMartDataStorageView = ({
 
   return (
     <>
-      <Toaster />
       <ListItemCard
         title={dataStorage.title}
         icon={dataStorageInfo.icon}
@@ -116,7 +110,6 @@ export const DataMartDataStorageView = ({
             if (onDataStorageChange) {
               onDataStorageChange(updatedStorage);
             }
-            void toast.success('Saved');
           }}
         />
       </DataStorageProvider>

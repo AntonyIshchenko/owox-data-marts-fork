@@ -45,25 +45,34 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/getting-started/core-concepts',
             {
               label: 'Editions',
-              items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition'],
+              items: [
+                'docs/editions/owox-cloud-editions',
+                'docs/editions/self-managed-editions',
+                'docs/editions/agency',
+              ],
+            },
+            {
+              label: 'Deployment Guide',
+              autogenerate: { directory: 'docs/getting-started/deployment-guide' },
             },
             {
               label: 'Setup Guide',
-              autogenerate: { directory: 'docs/getting-started/setup-guide' },
-            },
-          ],
-        },
-        {
-          label: 'Sources',
-          autogenerate: { directory: 'packages/connectors/src/sources' },
-        },
-        {
-          label: 'Storages',
-          items: [
-            'docs/storages/manage-storages',
-            {
-              label: 'Supported Storages',
-              autogenerate: { directory: 'docs/storages/supported-storages' },
+              items: [
+                'docs/getting-started/setup-guide/connector-data-mart',
+                'docs/getting-started/setup-guide/sql-data-mart',
+                'docs/getting-started/setup-guide/table-data-mart',
+                'docs/getting-started/setup-guide/view-data-mart',
+                'docs/getting-started/setup-guide/pattern-data-mart',
+                'docs/getting-started/setup-guide/connector-triggers',
+                'docs/getting-started/setup-guide/report-triggers',
+                {
+                  label: 'Members Management',
+                  autogenerate: {
+                    directory: 'docs/getting-started/setup-guide/members-management',
+                  },
+                  collapsed: true,
+                },
+              ],
             },
           ],
         },
@@ -78,6 +87,34 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Storages',
+          items: [
+            'docs/storages/manage-storages',
+            {
+              label: 'Supported Storages',
+              autogenerate: { directory: 'docs/storages/supported-storages' },
+            },
+          ],
+        },
+        {
+          label: 'Sources',
+          autogenerate: { directory: 'packages/connectors/src/sources' },
+        },
+        {
+          label: 'Google Sheets Connectors',
+          items: [
+            'docs/editions/appsscript-edition',
+            'docs/google-sheets-connectors/facebook-ads',
+            'docs/google-sheets-connectors/tiktok-ads',
+            'docs/google-sheets-connectors/linkedin-ads',
+            'docs/google-sheets-connectors/microsoft-ads',
+            'docs/google-sheets-connectors/reddit-ads',
+            'docs/google-sheets-connectors/x-ads',
+            'docs/google-sheets-connectors/open-exchange-rates',
+          ],
+          collapsed: true,
+        },
+        {
           label: 'Contributing',
           items: [
             {
@@ -88,23 +125,33 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             {
               label: 'Connectors',
               items: [
-                'packages/connectors/environment-adapter',
                 'packages/connectors/contributing',
+                'packages/connectors/creating-connector',
                 'packages/connectors/publishing',
               ],
               collapsed: true,
             },
             { label: 'Documentation', autogenerate: { directory: 'apps/docs' }, collapsed: true },
-            { label: 'CLI Application', autogenerate: { directory: 'apps/owox' }, collapsed: true },
+            {
+              label: 'CLI Application',
+              items: [
+                'apps/owox/readme',
+                'apps/owox/contributing',
+                'apps/owox/publishing',
+                'apps/owox/src/web/readme',
+              ],
+              collapsed: true,
+            },
             { label: 'Web Application', autogenerate: { directory: 'apps/web' }, collapsed: true },
             {
               label: 'Backend Application',
-              autogenerate: { directory: 'apps/backend' },
-              collapsed: true,
-            },
-            {
-              label: 'Connector Runner',
-              autogenerate: { directory: 'packages/connector-runner' },
+              items: [
+                'apps/backend/readme',
+                'apps/backend/modular-conventions',
+                'apps/backend/publishing',
+                'apps/backend/src/common/scheduler/readme',
+                'apps/backend/src/migrations/readme',
+              ],
               collapsed: true,
             },
             { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },

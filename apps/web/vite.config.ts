@@ -10,11 +10,16 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
   },
   server: {
+    host: '0.0.0.0',
     hmr: {
       overlay: false,
     },
     proxy: {
       '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/auth': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

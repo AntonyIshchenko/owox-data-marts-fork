@@ -17,26 +17,13 @@ export class UpdateDataMartSchemaService {
 
   async run(command: UpdateDataMartSchemaCommand): Promise<DataMartDto> {
     this.logger.debug(`Updating data mart ${command.id} schema ${command.schema}`);
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId,
-      command.userId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     dataMart.schema = await this.schemaParserFacade.validateAndParse(
       command.schema,
       dataMart.storage.type
     );
     await this.dataMartService.save(dataMart);
-
-    if (dataMart.definition) {
-      try {
-        await this.dataMartService.actualizeSchemaInEntity(dataMart);
-        await this.dataMartService.save(dataMart);
-      } catch (error) {
-        this.logger.warn('Failed to actualize schema on update', error);
-      }
-    }
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
     return this.mapper.toDomainDto(dataMart);

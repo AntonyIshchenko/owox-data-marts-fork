@@ -11,12 +11,14 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { GoogleSheetsReportEditForm } from '../GoogleSheetsReportEditForm';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
+import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 
 interface GoogleSheetsReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export function GoogleSheetsReportEditSheet({
@@ -24,6 +26,7 @@ export function GoogleSheetsReportEditSheet({
   onClose,
   initialReport,
   mode,
+  preSelectedDestination,
 }: GoogleSheetsReportEditSheetProps) {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -82,6 +85,7 @@ export function GoogleSheetsReportEditSheet({
               onDirtyChange={handleFormDirtyChange}
               onSubmit={handleFormSubmitSuccess}
               onCancel={handleClose}
+              preSelectedDestination={preSelectedDestination}
             />
           </DataDestinationProvider>
         </SheetContent>

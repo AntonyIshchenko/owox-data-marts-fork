@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormContext, type Control } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { type DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
@@ -27,24 +27,45 @@ import { ConnectorEditSheet } from '../../../../../connectors/edit/components/Co
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
 import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
 import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
+import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog/ConfirmationDialog';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
   storageType: DataStorageType;
+  preset?: string;
+  autoOpen?: boolean;
+  saveDataMartDefinition?: (e?: React.FormEvent<HTMLFormElement>) => void;
 }
 
-export function ConnectorDefinitionField({ control, storageType }: ConnectorDefinitionFieldProps) {
+export function ConnectorDefinitionField({
+  control,
+  storageType,
+  preset,
+  autoOpen = false,
+  saveDataMartDefinition,
+}: ConnectorDefinitionFieldProps) {
   const { dataMart, runDataMart } = useOutletContext<DataMartContextType>();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [isSetupSheetOpen, setIsSetupSheetOpen] = useState(false);
 
-  const triggerValidation = () => {
-    setTimeout(() => void trigger('definition'), 0);
-  };
+  useEffect(() => {
+    if (autoOpen) {
+      setIsSetupSheetOpen(true);
+    }
+  }, [autoOpen]);
 
   const datamartStatus = dataMart?.status ?? DataMartStatus.DRAFT;
 
-  const setupConnector = (connector: ConnectorConfig) => {
+  const applyDefinitionAndSave = async (definition: ConnectorDefinitionConfig) => {
+    setValue('definition', definition, { shouldDirty: true, shouldTouch: true });
+    const isValid = await trigger('definition');
+    if (isValid && saveDataMartDefinition) {
+      saveDataMartDefinition();
+    }
+  };
+
+  const setupConnector = async (connector: ConnectorConfig) => {
     const source: ConnectorSourceConfig = connector.source;
 
     const storage: ConnectorStorageConfig = connector.storage;
@@ -55,8 +76,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
         storage,
       },
     };
-    setValue('definition', newDefinition, { shouldDirty: true, shouldTouch: true });
-    triggerValidation();
+    await applyDefinitionAndSave(newDefinition);
   };
 
   const handleManualRun = async (payload: Record<string, unknown>) => {
@@ -69,32 +89,31 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
       id: dataMart.id,
       payload,
     });
-    toast.success('Manual run triggered successfully');
   };
 
-  const updateConnectorConfiguration = (configIndex: number) => (connector: ConnectorConfig) => {
-    const currentValues = getValues();
-    const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
+  const updateConnectorConfiguration =
+    (configIndex: number) => async (connector: ConnectorConfig) => {
+      const currentValues = getValues();
+      const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
-    if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
-      const updatedConfigurations = [...currentDefinition.connector.source.configuration];
-      updatedConfigurations[configIndex] = connector.source.configuration[0] || {};
+      if (typeof currentDefinition === 'object' && isConnectorDefinition(currentDefinition)) {
+        const updatedConfigurations = [...currentDefinition.connector.source.configuration];
+        updatedConfigurations[configIndex] = connector.source.configuration[0] || {};
 
-      const updatedDefinition: ConnectorDefinitionConfig = {
-        connector: {
-          ...currentDefinition.connector,
-          source: {
-            ...currentDefinition.connector.source,
-            configuration: updatedConfigurations,
+        const updatedDefinition: ConnectorDefinitionConfig = {
+          connector: {
+            ...currentDefinition.connector,
+            source: {
+              ...currentDefinition.connector.source,
+              configuration: updatedConfigurations,
+            },
           },
-        },
-      };
-      setValue('definition', updatedDefinition, { shouldDirty: true, shouldTouch: true });
-      triggerValidation();
-    }
-  };
+        };
+        await applyDefinitionAndSave(updatedDefinition);
+      }
+    };
 
-  const updateConnectorFields = (connector: ConnectorConfig) => {
+  const updateConnectorFields = async (connector: ConnectorConfig) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
@@ -108,8 +127,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
           },
         },
       };
-      setValue('definition', updatedDefinition, { shouldDirty: true, shouldTouch: true });
-      triggerValidation();
+      await applyDefinitionAndSave(updatedDefinition);
     }
     setIsEditSheetOpen(false);
   };
@@ -135,7 +153,22 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
     );
   };
 
-  const removeConfiguration = (configIndex: number) => {
+  const [configIndexToDelete, setConfigIndexToDelete] = useState<number | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const confirmDeleteConfiguration = (configIndex: number) => {
+    setConfigIndexToDelete(configIndex);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (configIndexToDelete === null) return;
+    await removeConfiguration(configIndexToDelete);
+    setConfigIndexToDelete(null);
+    setIsDeleteDialogOpen(false);
+  };
+
+  const removeConfiguration = async (configIndex: number) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
@@ -146,8 +179,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
       const emptyDefinition = getEmptyDefinition(
         DataMartDefinitionType.CONNECTOR
       ) as ConnectorDefinitionConfig;
-      setValue('definition', emptyDefinition, { shouldDirty: true, shouldTouch: true });
-      triggerValidation();
+      await applyDefinitionAndSave(emptyDefinition);
     }
 
     if (
@@ -168,12 +200,11 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
           source: updatedSource,
         },
       };
-      setValue('definition', updatedDefinition, { shouldDirty: true, shouldTouch: true });
-      triggerValidation();
+      await applyDefinitionAndSave(updatedDefinition);
     }
   };
 
-  const addConfiguration = (newConfig: Record<string, unknown>) => {
+  const addConfiguration = async (newConfig: Record<string, unknown>) => {
     const currentValues = getValues();
     const currentDefinition = currentValues.definition as ConnectorDefinitionConfig;
 
@@ -189,8 +220,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
           source: updatedSource,
         },
       };
-      setValue('definition', updatedDefinition, { shouldDirty: true, shouldTouch: true });
-      triggerValidation();
+      await applyDefinitionAndSave(updatedDefinition);
     }
   };
 
@@ -200,14 +230,22 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
         control={control}
         name='definition'
         render={({ field }) => (
-          <FormItem>
+          <FormItem className='dark:bg-white/2'>
             <FormControl>
               <div className='space-y-3'>
                 {!isConnectorConfigured(field.value as ConnectorDefinitionConfig) ||
                 datamartStatus === DataMartStatus.DRAFT ? (
                   <ConnectorSetupButton
                     storageType={storageType}
-                    onSetupConnector={setupConnector}
+                    onSetupConnector={(connector: ConnectorConfig) => {
+                      void setupConnector(connector);
+                      setIsSetupSheetOpen(false);
+                    }}
+                    preset={preset}
+                    isOpen={isSetupSheetOpen}
+                    onClose={() => {
+                      setIsSetupSheetOpen(false);
+                    }}
                   />
                 ) : (
                   <div className='space-y-3'>
@@ -215,7 +253,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                       <div className='flex items-center gap-2'>
                         <AddConfigurationButton
                           storageType={storageType}
-                          onAddConfiguration={addConfiguration}
+                          onAddConfiguration={newConfig => void addConfiguration(newConfig)}
                           existingConnector={
                             isConnectorConfigured(field.value as ConnectorDefinitionConfig)
                               ? {
@@ -260,8 +298,12 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                                     configIndex={configIndex}
                                     connectorDef={connectorDef}
                                     dataStorage={dataMart.storage}
-                                    onRemoveConfiguration={removeConfiguration}
-                                    onUpdateConfiguration={updateConnectorConfiguration}
+                                    onRemoveConfiguration={configIndex => {
+                                      confirmDeleteConfiguration(configIndex);
+                                    }}
+                                    onUpdateConfiguration={configIndex =>
+                                      updateConnectorConfiguration(configIndex)
+                                    }
                                     dataMartStatus={
                                       typeof datamartStatus === 'object'
                                         ? datamartStatus.code
@@ -292,7 +334,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
           onClose={() => {
             setIsEditSheetOpen(false);
           }}
-          onSubmit={updateConnectorFields}
+          onSubmit={connector => void updateConnectorFields(connector)}
           dataStorageType={storageType}
           existingConnector={
             isConnectorConfigured(getValues().definition as ConnectorDefinitionConfig)
@@ -305,6 +347,22 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
           mode='fields-only'
         />
       </ConnectorContextProvider>
+
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title='Delete Configuration'
+        description='Are you sure you want to delete this configuration? This action cannot be undone.'
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        onConfirm={() => {
+          void handleConfirmDelete();
+        }}
+        onCancel={() => {
+          setConfigIndexToDelete(null);
+        }}
+        variant='destructive'
+      />
     </>
   );
 }

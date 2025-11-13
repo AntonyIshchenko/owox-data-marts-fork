@@ -2,13 +2,23 @@ import axios, {
   type AxiosInstance,
   type AxiosRequestConfig as OriginalAxiosRequestConfig,
   AxiosError,
+  type InternalAxiosRequestConfig,
+  AxiosHeaders,
 } from 'axios';
-import toast from 'react-hot-toast';
-import type { ApiError } from './api-error.interface.ts';
+import { showApiErrorToast } from '../../shared/utils';
+import { AuthStateManager } from './auth-state-manager';
+import { getTokenProvider } from './token-provider';
 
 // Extend AxiosRequestConfig to include our custom properties
 export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
   skipLoadingIndicator?: boolean;
+  skipAuthHeader?: boolean;
+}
+
+// Extend InternalAxiosRequestConfig to include our custom properties
+interface ExtendedInternalAxiosRequestConfig extends InternalAxiosRequestConfig {
+  skipAuthHeader?: boolean;
+  _retry?: boolean;
 }
 
 // Default config for the axios instance
@@ -27,13 +37,75 @@ const axiosConfig: AxiosRequestConfig = {
 
 const apiClient: AxiosInstance = axios.create(axiosConfig);
 
+const authStateManager = new AuthStateManager();
+
+// Request interceptor to add auth headers
+apiClient.interceptors.request.use(
+  (config: ExtendedInternalAxiosRequestConfig) => {
+    if (config.skipAuthHeader) {
+      return config;
+    }
+
+    const headers = new AxiosHeaders(config.headers);
+    if (headers.has('X-OWOX-Authorization')) {
+      return config;
+    }
+
+    const tokenProvider = getTokenProvider();
+    const accessToken = tokenProvider?.getAccessToken() ?? authStateManager.getAccessToken();
+
+    if (accessToken) {
+      config.headers['X-OWOX-Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    return config;
+  },
+  (error: unknown) => {
+    return Promise.reject(error instanceof Error ? error : new Error('Unknown error'));
+  }
+);
+
+// Response interceptor for error handling and token refresh
 apiClient.interceptors.response.use(
   response => response,
-  (error: AxiosError) => {
-    if (error.response && error.response.status === 400) {
-      const data = error.response.data as ApiError;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as ExtendedInternalAxiosRequestConfig;
 
-      toast.error(data.message);
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const tokenProvider = getTokenProvider();
+        if (!tokenProvider) {
+          throw new Error('No token provider available');
+        }
+
+        const newAccessToken = await authStateManager.refreshToken(() =>
+          tokenProvider.refreshToken()
+        );
+
+        originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
+
+        return await apiClient(originalRequest);
+      } catch {
+        authStateManager.clear();
+
+        window.dispatchEvent(
+          new CustomEvent('auth:logout', {
+            detail: { reason: 'token_refresh_failed' },
+          })
+        );
+
+        return Promise.reject(new Error('Token refresh failed'));
+      }
+    }
+
+    if (error.response?.status === 403) {
+      showApiErrorToast(error, 'Access forbidden - insufficient permissions');
+    }
+
+    if (error.response?.status === 400) {
+      showApiErrorToast(error, 'Bad request');
     }
 
     return Promise.reject(error);

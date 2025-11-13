@@ -8,48 +8,45 @@
 var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
-      AccessToken: {
+      ClientID: {
         isRequired: true,
         requiredType: "string",
-        label: "Access Token",
-        description: "LinkedIn API Access Token for authentication"
+        label: "Client ID",
+        description: "LinkedIn API Client ID for authentication"
       },
-      Version: {
+      ClientSecret: {
+        isRequired: true,
         requiredType: "string",
-        default: "202504",
-        label: "API Version",
-        description: "LinkedIn API version"
+        label: "Primary Client Secret",
+        description: "LinkedIn API Primary Client Secret for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
+      },
+      RefreshToken: {
+        isRequired: true,
+        requiredType: "string",
+        label: "Refresh Token",
+        description: "LinkedIn API Refresh Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
         label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up"
-      },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
-      BaseUrl: {
-        requiredType: "string",
-        default: "https://api.linkedin.com/rest/",
-        label: "Base URL",
-        description: "LinkedIn API base URL"
+        description: "Number of days to keep data before cleaning up",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -62,23 +59,24 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         label: "Fields",
         description: "List of fields to fetch from LinkedIn API"
       },
-      MaxFieldsPerRequest: {
-        requiredType: "number",
-        isRequired: true,
-        default: 20,
-        label: "Max Fields Per Request",
-        description: "Maximum number of fields to request per API call"
-      },
       OrganizationURNs: {
         isRequired: true,
         label: "Organization URNs",
         description: "LinkedIn Organization URNs to fetch data from"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
     
     this.fieldsSchema = LinkedInPagesFieldsSchema;
+    this.BASE_URL = "https://api.linkedin.com/rest/";
   }
-  
+
   /**
    * Main entry point for fetching data from LinkedIn Pages API
    * @param {string} nodeName - Type of resource to fetch
@@ -86,7 +84,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Object} params - Additional parameters for the request
    * @returns {Array} - Array of processed data objects
    */
-  fetchData(nodeName, urn, params = {}) {
+  async fetchData(nodeName, urn, params = {}) {
     const fields = params.fields || [];
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
@@ -97,7 +95,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     
     switch (nodeName) {
       case "follower_statistics_time_bound":
-        return this.fetchOrganizationStats({
+        return await this.fetchOrganizationStats({
           urn, 
           nodeName,
           endpoint: "organizationalEntityFollowerStatistics",
@@ -106,7 +104,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
           params
         });
       case "follower_statistics":
-        return this.fetchOrganizationStats({
+        return await this.fetchOrganizationStats({
           urn, 
           nodeName,
           endpoint: "organizationalEntityFollowerStatistics",
@@ -132,13 +130,13 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Array} [options.params.fields] - Additional parameters including fields
    * @returns {Array} - Processed statistics data
    */
-  fetchOrganizationStats(options) {
+  async fetchOrganizationStats(options) {
     const { urn, nodeName, endpoint, entityParam, formatter, params } = options;
     const orgUrn = `urn:li:organization:${urn}`;
     const encodedUrn = encodeURIComponent(orgUrn);
-    
-    let url = `${this.config.BaseUrl.value}${endpoint}?q=${entityParam}&${entityParam}=${encodedUrn}`;
-    
+
+    let url = `${this.BASE_URL}${endpoint}?q=${entityParam}&${entityParam}=${encodedUrn}`;
+
     const isTimeSeries = this.fieldsSchema[nodeName].isTimeSeries;
 
     if (isTimeSeries && params.startDate && params.endDate) {
@@ -147,13 +145,13 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       url += `&timeIntervals=(timeRange:(start:${startTimestamp},end:${endTimestamp}),timeGranularityType:DAY)`;
     }
 
-    const response = this.makeRequest(url);
+    const response = await this.makeRequest(url);
     const elements = response.elements || [];
-    
+
     if (elements.length === 0) {
       return [];
     }
-    
+
     return formatter({
       elements,
       orgUrn,
@@ -167,18 +165,33 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest(url) {
+  async makeRequest(url) {
+    console.log(`LinkedIn Pages API URL:`, url);
+    await OAuthUtils.getAccessToken({
+      config: this.config,
+      tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
+      formData: {
+        grant_type: 'refresh_token',
+        refresh_token: this.config.RefreshToken.value,
+        client_id: this.config.ClientID.value,
+        client_secret: this.config.ClientSecret.value
+      }
+    });
+
     const headers = {
-      "LinkedIn-Version": this.config.Version.value,
+      "LinkedIn-Version": "202509",
       "X-RestLi-Protocol-Version": "2.0.0",
     };
-      
+
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
-      
-    const response = EnvironmentAdapter.fetch(authUrl, { headers });
-    const result = JSON.parse(response.getContentText());
-      
-    return result;
+
+    const response = await HttpUtils.fetch(authUrl, { headers });
+    const result = await response.getContentText();
+    const parsedResult = JSON.parse(result);
+    if (parsedResult.status && parsedResult.status >= HTTP_STATUS.BAD_REQUEST) {
+      throw new Error(`LinkedIn API Error: ${parsedResult.message || 'Unknown error'} (Status: ${parsedResult.status})`);
+    }
+    return parsedResult;
   }
   
   /**

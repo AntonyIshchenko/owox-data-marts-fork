@@ -11,6 +11,8 @@ import { dataStorageApiService } from '../../api';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import { DataStorageType } from '../types';
 import { extractApiError } from '../../../../../app/api';
+import toast from 'react-hot-toast';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useDataStorage() {
   const { state, dispatch } = useDataStorageContext();
@@ -28,6 +30,7 @@ export function useDataStorage() {
         type: DataStorageActionType.FETCH_STORAGES_ERROR,
         payload: extractApiError(error),
       });
+      throw error;
     }
   }, [dispatch]);
 
@@ -42,6 +45,7 @@ export function useDataStorage() {
           type: DataStorageActionType.FETCH_STORAGE_ERROR,
           payload: extractApiError(error),
         });
+        throw error;
       }
     },
     [dispatch]
@@ -58,6 +62,15 @@ export function useDataStorage() {
           type: DataStorageActionType.CREATE_STORAGE_SUCCESS,
           payload: newStorage,
         });
+
+        trackEvent({
+          event: 'data_storage_created',
+          category: 'DataStorage',
+          action: 'Create',
+          label: newStorage.type,
+        });
+
+        toast.success('Storage created');
         return newStorage;
       } catch (error) {
         dispatch({
@@ -81,6 +94,13 @@ export function useDataStorage() {
           type: DataStorageActionType.UPDATE_STORAGE_SUCCESS,
           payload: updatedStorage,
         });
+        trackEvent({
+          event: 'data_storage_updated',
+          category: 'DataStorage',
+          action: 'Update',
+          label: updatedStorage.type,
+        });
+        toast.success('Storage updated');
         return updatedStorage;
       } catch (error) {
         dispatch({
@@ -99,11 +119,19 @@ export function useDataStorage() {
       try {
         await dataStorageApiService.deleteDataStorage(id);
         dispatch({ type: DataStorageActionType.DELETE_STORAGE_SUCCESS, payload: id });
+        trackEvent({
+          event: 'data_storage_deleted',
+          category: 'DataStorage',
+          action: 'Delete',
+          label: id,
+        });
+        toast.success('Storage deleted');
       } catch (error) {
         dispatch({
           type: DataStorageActionType.DELETE_STORAGE_ERROR,
           payload: extractApiError(error),
         });
+        throw error;
       }
     },
     [dispatch]

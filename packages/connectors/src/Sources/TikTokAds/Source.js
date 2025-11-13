@@ -13,17 +13,21 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Access Token",
-        description: "TikTok Ads API Access Token for authentication"
+        description: "TikTok Ads API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AppId: {
         requiredType: "string",
+        isRequired: true,
         label: "App ID",
         description: "TikTok Ads API Application ID"
       },
       AppSecret: {
         requiredType: "string",
+        isRequired: true,
         label: "App Secret",
-        description: "TikTok Ads API Application Secret"
+        description: "TikTok Ads API Application Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AdvertiserIDs: {
         isRequired: true,
@@ -34,13 +38,14 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string", 
         default: "AUCTION_AD",
         label: "Data Level",
-        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)"
+        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -53,31 +58,35 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
         label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up"
-      },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
+        description: "Number of days to keep data before cleaning up",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       IncludeDeleted: {
-        requiredType: "bool",
+        requiredType: "boolean",
         default: false,
         label: "Include Deleted",
-        description: "Include deleted entities in results"
+        description: "Include deleted entities in results",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       SandboxMode: {
-        requiredType: "bool",
+        requiredType: "boolean",
         default: false,
         label: "Sandbox Mode",
-        description: "Use sandbox environment for testing"
+        description: "Use sandbox environment for testing",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
 
@@ -138,7 +147,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
    * @param {Date} endDate - End date for time-series data (optional)
    * @return {array} - Array of data objects
    */
-  fetchData(nodeName, advertiserId, fields, startDate = null, endDate = null) {
+  async fetchData(nodeName, advertiserId, fields, startDate = null, endDate = null) {
     // Check if the node schema exists
     if (!this.fieldsSchema[nodeName]) {
       throw new Error(`Unknown node type: ${nodeName}`);
@@ -159,7 +168,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       this.config.AppId.value,
       this.config.AccessToken.value,
       this.config.AppSecret.value,
-      this.config.SandboxMode && this.config.SandboxMode.value === true
+      this.config.SandboxMode && this.config.SandboxMode.value
     );
     
     // Store the current advertiser ID so it can be used if missing in records
@@ -169,16 +178,16 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     let formattedEndDate = null;
     
     if (startDate) {
-      formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+      formattedStartDate = DateUtils.formatDate(startDate);
       // If no end date is provided, use start date as end date (single day)
-      formattedEndDate = endDate 
-        ? EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd") 
+      formattedEndDate = endDate
+        ? DateUtils.formatDate(endDate)
         : formattedStartDate;
     }
 
     // Filter parameter for including deleted entities
     let filtering = null;
-    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value === true) {
+    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value) {
       if (nodeName === 'campaigns') {
         filtering = {"secondary_status": "CAMPAIGN_STATUS_ALL"};
       } else if (nodeName === 'ad_groups') {
@@ -203,41 +212,41 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     try {
       switch (nodeName) {
         case 'advertiser':
-          allData = provider.getAdvertisers(advertiserId);
+          allData = await provider.getAdvertisers(advertiserId);
           break;
 
         case 'campaigns':
-          allData = provider.getCampaigns(advertiserId, filteredFields, filtering);
+          allData = await provider.getCampaigns(advertiserId, filteredFields, filtering);
           break;
 
         case 'ad_groups':
-          allData = provider.getAdGroups(advertiserId, filteredFields, filtering);
+          allData = await provider.getAdGroups(advertiserId, filteredFields, filtering);
           break;
 
         case 'ads':
-          allData = provider.getAds(advertiserId, filteredFields, filtering);
+          allData = await provider.getAds(advertiserId, filteredFields, filtering);
           break;
 
         case 'ad_insights':
           // Format for ad reporting endpoint
-          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ? 
+          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
                         this.config.DataLevel.value : "AUCTION_AD";
-          
+
           // Validate the data level
           const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
           if (!validDataLevels.includes(dataLevel)) {
-            this.config.logMessage(`⚠️ Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
+            this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
             dataLevel = "AUCTION_AD";
           }
-          
+
           // Set dimensions based on data level
           let dimensions = this.getDimensionsForDataLevel(dataLevel);
-      
+
           // Use only metrics that are in our known valid list
           const validMetricsList = provider.getValidAdInsightsMetrics();
           let metricFields = this.getFilteredMetrics(filteredFields, dimensions, validMetricsList);
 
-          allData = provider.getAdInsights({
+          allData = await provider.getAdInsights({
             advertiserId: advertiserId,
             dataLevel: dataLevel,
             dimensions: dimensions,
@@ -246,9 +255,9 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
             endDate: formattedEndDate
           });
           break;
-          
+
         case 'audiences':
-          allData = provider.getAudiences(advertiserId);
+          allData = await provider.getAudiences(advertiserId);
           break;
 
         default:
@@ -455,14 +464,4 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     return processedRecord;
   }
 
-  /**
-   * Returns credential fields for this source
-   */
-  getCredentialFields() {
-    return {
-      AccessToken: this.config.AccessToken,
-      AppId: this.config.AppId,
-      AppSecret: this.config.AppSecret
-    };
-  }
 };

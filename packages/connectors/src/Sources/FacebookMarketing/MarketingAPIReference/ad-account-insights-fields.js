@@ -28,17 +28,9 @@ var adAccountInsightsFields = {
     'description': 'The total number of actions people took that are attributed to your ads. Actions may include engagement, clicks or conversions.',
     'type': 'list<AdsActionStats>'
   },
-  'activity_recency': {
-    'description': 'activity_recency',
-    'type': 'string'
-  },
   'ad_click_actions': {
     'description': 'ad_click_actions',
     'type': 'list<AdsActionStats>'
-  },
-  'ad_format_asset': {
-    'description': 'ad_format_asset',
-    'type': 'string'
   },
   'ad_id': {
     'description': 'The unique ID of the ad you\'re viewing in reporting.',
@@ -62,10 +54,6 @@ var adAccountInsightsFields = {
     'description': 'The name of the ad set you\'re viewing in reporting. An ad set is a group of ads that share the same budget, schedule, delivery optimization and targeting.',
     'type': 'string'
   },
-  'age_targeting': {
-    'description': 'age_targeting',
-    'type': 'string'
-  },
   'attribution_setting': {
     'description': 'The default attribution window to be used when attribution result is calculated. Each ad set has its own attribution setting value. The attribution setting for campaign or account is calculated based on existing ad sets.',
     'type': 'string'
@@ -84,10 +72,6 @@ var adAccountInsightsFields = {
     'description': 'auction_max_competitor_bid',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'body_asset': {
-    'description': 'body_asset',
-    'type': 'AdAssetBody'
   },
   'buying_type': {
     'description': 'The method by which you pay for and target ads in your campaigns: through dynamic auction bidding, fixed-price bidding, or reach and frequency buying. This field is currently only visible at the campaign level.',
@@ -136,14 +120,6 @@ var adAccountInsightsFields = {
     'description': 'The number of clicks on your ads.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'coarse_conversion_value': {
-    'description': 'Allows advertisers and ad networks to receive directional post-install quality insights when the volume of campaign conversions isn\'t high enough to meet the privacy threshold needed to unlock the standard conversion value. Possible values of this breakdown are low, medium and high.',
-    'type': 'string'
-  },
-  'comparison_node': {
-    'description': 'Parent node that encapsulates fields to be compared (current time range Vs comparison time range)',
-    'type': 'AdsInsightsComparison'
   },
   'conversion_values': {
     'description': 'conversion_values',
@@ -274,34 +250,6 @@ var adAccountInsightsFields = {
     'description': 'dda_results',
     'type': 'list<AdsInsightsDdaResult>'
   },
-  'description_asset': {
-    'description': 'description_asset',
-    'type': 'AdAssetDescription'
-  },
-  'estimated_ad_recall_rate_lower_bound': {
-    'description': 'estimated_ad_recall_rate_lower_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'estimated_ad_recall_rate_upper_bound': {
-    'description': 'estimated_ad_recall_rate_upper_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'estimated_ad_recallers_lower_bound': {
-    'description': 'estimated_ad_recallers_lower_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'estimated_ad_recallers_upper_bound': {
-    'description': 'estimated_ad_recallers_upper_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'fidelity_type': {
-    'description': 'To differentiate StoreKit-rendered ads from view-through ads, SKAdNetwork defines a fidelity-type parameter, which you include in the ad signature and receive in the install-validation postback. Use a fidelity-type value of 1 for StoreKit-rendered ads and attributable web ads, and 0 for view-through ads.',
-    'type': 'string'
-  },
   'frequency': {
     'description': 'The average number of times each person saw your ad. This metric is estimated.',
     'type': 'numeric string',
@@ -316,18 +264,6 @@ var adAccountInsightsFields = {
     'description': 'The number of people who performed a Full View on your Page\'s post as a result of your ad.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'gender_targeting': {
-    'description': 'gender_targeting',
-    'type': 'string'
-  },
-  'hsid': {
-    'description': 'The hsid key is available for ad impressions that use SKAdNetwork 4 and later. This integer can have up to four digits. You can encode information about your advertisement in each set of digits; you may receive two, three, or all four digits of the sourceIdentifier in the first winning postback, depending on the ad impression\'s postback data tier.',
-    'type': 'string'
-  },
-  'image_asset': {
-    'description': 'image_asset',
-    'type': 'AdAssetImage'
   },
   'impressions': {
     'description': 'The number of times your ads were on screen.',
@@ -372,26 +308,10 @@ var adAccountInsightsFields = {
     'description': 'interactive_component_tap',
     'type': 'list<AdsActionStats>'
   },
-  'labels': {
-    'description': 'labels',
-    'type': 'string'
-  },
-  'landing_destination': {
-    'description': 'landing_destination',
-    'type': 'string'
-  },
-  'location': {
-    'description': 'location',
-    'type': 'string'
-  },
   'marketing_messages_delivery_rate': {
     'description': 'The number of messages delivered divided by the number of messages sent. Some messages may not be delivered, such as when a customer\'s device is out of service. This metric doesn\'t include messages sent to Europe and Japan.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'media_asset': {
-    'description': 'media_asset',
-    'type': 'AdAssetMedia'
   },
   'mobile_app_purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from mobile app purchases. This is based on the value that you assigned when you set up the app event.',
@@ -413,10 +333,6 @@ var adAccountInsightsFields = {
     'description': 'The percentage of times people saw your ad and performed an outbound click.',
     'type': 'list<AdsActionStats>'
   },
-  'postback_sequence_index': {
-    'description': 'Sequence of postbacks received from SkAdNetwork API version 4.0. Possible values of this breakdown are 0 (first postback), 1 (second postback) and 2 (third postback).',
-    'type': 'string'
-  },
   'purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from purchases. This is based on information received from one or more of your connected Facebook Business Tools and attributed to your ads.',
     'type': 'list<AdsActionStats>'
@@ -430,14 +346,6 @@ var adAccountInsightsFields = {
     'description': 'The number of people who saw your ads at least once. Reach is different from impressions, which may include multiple views of your ads by the same people. This metric is estimated.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'redownload': {
-    'description': 'Boolean flag that indicates the customer redownloaded and reinstalled the app when the value is true. A 1 indicates customer has reinstalled the app and 0 indicates that customer hasn’t reinstalled the app',
-    'type': 'string'
-  },
-  'rule_asset': {
-    'description': 'rule_asset',
-    'type': 'AdAssetRule'
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',
@@ -454,25 +362,13 @@ var adAccountInsightsFields = {
     'GoogleSheetsFormat': '$#,##0.00',
     'GoogleBigQueryType': 'numeric'
   },
-  'title_asset': {
-    'description': 'title_asset',
-    'type': 'AdAssetTitle'
-  },
   'updated_time': {
     'description': 'updated_time',
-    'type': 'string'
-  },
-  'user_segment_key': {
-    'description': 'user_segment_key',
     'type': 'string'
   },
   'video_30_sec_watched_actions': {
     'description': 'The number of times your video played for at least 30 seconds, or for nearly its total length if it\'s shorter than 30 seconds. For each impression of a video, we\'ll count video views separately and exclude any time spent replaying the video.',
     'type': 'list<AdsActionStats>'
-  },
-  'video_asset': {
-    'description': 'video_asset',
-    'type': 'AdAssetVideo'
   },
   'video_avg_time_watched_actions': {
     'description': 'The average time a video was played, including any time spent replaying the video for a single impression.',
@@ -538,197 +434,5 @@ var adAccountInsightsFields = {
     'description': 'wish_bid',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'action_device': {
-    'description': 'The device on which the conversion event you\'re tracking occurred. For example, \""Desktop\"" if someone converted on a desktop computer.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_canvas_component_name': {
-    'description': 'Name of a component within a Canvas ad.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_carousel_card_id': {
-    'description': 'The ID of the specific carousel card that people engaged with when they saw your ad.',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'action_carousel_card_name': {
-    'description': 'The specific carousel card that people engaged with when they saw your ad. The cards are identified by their headlines.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_destination': {
-    'description': 'The destination where people go after clicking on your ad. This could be your Facebook Page, an external URL for your conversion pixel or an app configured with the software development kit (SDK).',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_reaction': {
-    'description': 'The number of reactions on your ads or boosted posts. The reactions button on an ad allows people to share different reactions on its content: Like, Love, Haha, Wow, Sad or Angry.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_target_id': {
-    'description': 'The ID of destination where people go after clicking on your ad. This could be your Facebook Page, an external URL for your conversion pixel or an app configured with the software development kit (SDK).',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'action_type': {
-    'description': 'The kind of actions taken on your ad, page, app or event after your ad was served to someone, even if they didn\'t click on it. Action types include page likes, app installs, conversions, event responses, and more.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_video_sound': {
-    'description': 'The sound status (on/off) when someone plays your video ad.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'action_video_type': {
-    'description': 'Video metrics breakdown.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'ad_format_asset': {
-    'description': 'The ID of the ad format asset involved in impression, click, or action',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'age': {
-    'description': 'The age range of the people you\'ve reached.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'app_id': {
-    'description': 'The ID of the application associated with the ad account or campaign requested. The application information, including its ID, is viewable in the App Dashboard.',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'body_asset': {
-    'description': 'The ID of the body asset involved in impression, click, or action.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'call_to_action_asset': {
-    'description': 'The ID of the call to action asset involved in impression, click, or action.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'country': {
-    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'description_asset': {
-    'description': 'The ID of the description asset involved in impression, click, or action.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'device_platform': {
-    'description': 'The type of device, mobile or desktop, used by people when they viewed or clicked on an ad, as shown in ads reporting.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'dma': {
-    'description': 'The Designated Market Area (DMA) regions are the 210 geographic areas in the United States in which local television viewing is measured by The Nielsen Company.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'frequency_value': {
-    'description': 'The number of times an ad in your Reach and Frequency campaign was served to each Accounts Center account.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'gender': {
-    'description': 'Gender of people you\'ve reached. People who don\'t list their gender are shown as \'not specified\'.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'hourly_stats_aggregated_by_advertiser_time_zone': {
-    'description': 'Hourly breakdown aggregated by the time ads were delivered in the advertiser\'s time zone. For example, if your ads are scheduled to run from 9 AM to 11 AM, but they reach audiences in multiple time zones, they may deliver from 9 AM to 1 PM in the advertiser\'s time zone. Stats will be aggregated into four groups 9 AM - 10 AM, 10 AM - 11 AM, 11 AM - 12 PM, and 12 PM - 1 PM.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'hourly_stats_aggregated_by_audience_time_zone': {
-    'description': 'Hourly breakdown aggregated by the time ads were delivered in the audiences\' time zone. For example, if your ads are scheduled to run from 9:00 am to 11:00 am, but they reach audiences in multiple time zones, they may deliver from 9:00 am to 1:00 pm in the advertiser\'s time zone. Stats are aggregated into 2 groups: 9:00 am to 10:00 am and 10:00 am to 11:00 am.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'image_asset': {
-    'description': 'The ID of the image asset involved in impression, click, or action.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'impression_device': {
-    'description': 'The device where your last ad was served to someone on Meta. For example \""iPhone\"" if someone viewed your ad on an iPhone.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'is_conversion_id_modeled': {
-    'description': 'A boolean flag that indicates whether the conversion_bits are modeled. A 0 indicates conversion_bits aren\'t modeled, and a 1 indicates that conversion_bits are modeled.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'link_url_asset': {
-    'description': 'The ID of the URL asset involved in impression, click or action.',
-    'type': 'object',
-    'fieldType': 'breakdown'
-  },
-  'place_page_id': {
-    'description': 'The ID of the place page involved in impression or click.',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'platform_position': {
-    'description': 'Where your ad was shown within a platform, for example on Facebook desktop Feed, or Instagram Mobile Feed.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'product_id': {
-    'description': 'The ID of the product involved in impression, click, or action.',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'publisher_platform': {
-    'description': 'Which platform your ad was shown, for example on Facebook, Instagram, or Audience Network.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'region': {
-    'description': 'The regions where the people you\'ve reached are located. This is based on information such as a person\'s hometown, their current city and the geographical location where they tend to be when they visit Facebook.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'skan_campaign_id': {
-    'description': 'The raw campaign ID received as a part of Skan postback from iOS 15+.',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'skan_conversion_id': {
-    'description': 'The assigned Conversion ID (also referred to as Priority ID) of the event and/or event bundle configured in the application’s SKAdNetwork configuration schema. The app events configuration can be viewed and adjusted in Meta Events Manager. You can learn more about configuring your app events for Apple\'s SKAdNetwork here.',
-    'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
-  },
-  'title_asset': {
-    'description': 'The ID of the title asset involved in impression, click or action.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'user_segment_key': {
-    'description': 'User segment (ex: new, existing) of Advantage+ Shopping Campaigns (ASC). Existing user is specified by the custom audience in ASC settings.',
-    'type': 'string',
-    'fieldType': 'breakdown'
-  },
-  'video_asset': {
-    'description': 'The ID of the video asset involved in impression, click or action.',
-    'type': 'string',
-    'fieldType': 'breakdown'
   }
 }

@@ -1,72 +1,86 @@
 # How to Import Data from the Linkedin Pages Source
 
-To receive data from the LinkedIn Pages source, please make a copy of the file
-["LinkedIn Pages → Google Sheets. Template"](https://docs.google.com/spreadsheets/d/1KgLiUiPfswvl-ZGRJnu937mKgRiYPJlbNxpmkzXo4-Q/copy) or
-["LinkedIn Pages → Google BigQuery. Template"](https://docs.google.com/spreadsheets/d/1lFqSkdHjO2jTlHoi8QtmJNMCZK1YSaMKaSYmDI7LMKQ/copy)
+Before proceeding, please make sure that:
 
-Fill in required information:
+- You have created a **refresh token** (as described in [CREDENTIALS](CREDENTIALS)) and securely saved your **Client ID** and **Primary Client Secret**.  
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
-- **Start Date**
-- **Organization URNs**
-- **Fields**
-- **Destination Dataset ID** (for **Google BigQuery** template)
-- **Destination Location** (for **Google BigQuery** template)
+![LinkedIn Pages Storage](res/linkedin_pages_storage.png)
 
-The import will begin from the selected **Start Date**.  
-> ⚠️ Note: Choosing a long date range may cause the import to fail due to high data volume.
+## Create the Data Mart
 
-![LinkedIn Start Date](res/linkedin_date.png)
+- Click **New Data Mart**.
+- Enter a title and select the Storage.
+- Click **Create Data Mart**.
 
-To obtain **Organization URN**, go to [LinkedIn Campaign Manager](https://www.linkedin.com/campaignmanager).
+![LinkedIn Pages New Data Mart](res/linkedin_pages_newdatamart.png)
 
-Select your ad account > Assets > Company Page.
+## Set Up the Connector
 
-The URL may show something like:
+1. Select **Connector** as the input source type.
+2. Click **Set up connector** and choose **LinkedIn Pages**.  
+3. Fill in the required fields:
+    - **Client ID** – paste the ID you saved earlier.
+    - **Primary Client Secret** – paste the secret you saved earlier.
+    - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
+    - **Organization URNs** – you can find this value on your LinkedIn company page.
+    - Leave the other fields as default and proceed to the next step.
 
-<https://www.linkedin.com/company/123456/admin/>
+![LinkedIn Pages Input Source](res/linkedin_pages_connector.png)
 
-Here, `123456` is the Organization URN.
+![LinkedIn Pages Fill Data](res/linkedin_pages_fill_data.png)
 
-To include fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
+![LinkedIn Pages Organization URN](res/linkedin_pages_organizationurn.png)
 
-![LinkedIn Fields](res/linkedin_fields.png)
+## Configure Data Import
 
-If you're using the **Google BigQuery** template, also provide:
+1. Choose one of the available **endpoints**.  
+2. Select the required **fields**.  
+3. Specify the **dataset** where the data will be stored (or leave the default).  
+4. Click **Finish**, then **Save** and **Publish Data Mart**.
 
-- **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location**
+![LinkedIn Pages Publish Data Mart](res/linkedin_pages_publish.png)
 
-> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
+## Run the Data Mart
 
-![LinkedIn Dataset](res/linkedin_dataset.png)
+You now have two options for importing data from LinkedIn Pages:  
 
-Go to the menu: **OWOX → Manage Credentials**
+Option 1: Import Current Day's Data
 
-![LinkedIn Credentials](res/linkedin_credentials.png)
+Choose **Manual run → Incremental load** to load data for the **current day**.
 
-Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Pages connector**](CREDENTIALS.md).
+![Linkedin Pages Import New Data](res/linkedin_pages_incremental.png)
 
-![LinkedIn Token](res/linkedin_token.png)
+![Linkedin Pages Incremental Load](res/linkedin_pages_currentday.png)
 
-Click **OK**. Once your credentials are saved, click: **OWOX → Import New Data**
+> ℹ️ If you click **Incremental load** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-![LinkedIn Import Data](res/linkedin_import.png)
+![LinkedIn Pages Reimport](res/linkedin_pages_reimportwindow.png)
 
-The import process is complete when the Log data displays **"Import is finished"**.
+Option 2: Manual Backfill for Specific Date Range
 
-Access Your Data:
+Choose **Backfill (custom period)** to load historical data.  
 
-- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *adAccounts*, *adCampaignGroups*).  
+1. Select the **Start Date** and **End Date**.
+2. Click the **Run** button.
 
-![LinkedIn Finished](res/linkedin_success.png)
+![LinkedIn Pages Backfill](res/linkedin_pages_daterange.png)
 
-- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+The process is complete when the **Run history** tab shows the message:  
+**"Success"**  
 
-![LinkedIn Finished](res/linkedin_bq.png)
+![LinkedIn Pages Success](res/linkedin_pages_successrun.png)
+
+## Access Your Data
+
+Once the run is complete, the data will be written to the dataset you specified earlier.
+
+![LinkedIn Pages Import Success](res/linkedin_pages_bq.png)
 
 If you encounter any issues:
 
-1. Check the "Logs" sheet for specific error messages
+1. Check the Run history for specific error messages
 2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
 4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements

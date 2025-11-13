@@ -35,7 +35,7 @@ class ConnectorBuilder {
       // Get all JS files for this connector
       const files = await glob('**/*.js', {
         cwd: connectorPath,
-        ignore: ['**/*.gs', '**/node_modules/**'],
+        ignore: ['**/node_modules/**'],
       });
 
       let manifest = null;
@@ -83,7 +83,7 @@ class ConnectorBuilder {
 
       const files = await glob('**/*.js', {
         cwd: storagePath,
-        ignore: ['**/*.gs', '**/node_modules/**'],
+        ignore: ['**/node_modules/**'],
       });
 
       if (files.length === 0) continue;
@@ -202,7 +202,7 @@ class ConnectorBuilder {
       allCoreClasses.push(...classNames);
 
       // For constants files, also extract constants
-      if (file.includes('Constants/')) {
+      if (file.includes('Constants' + path.sep)) {
         const constantNames = this.extractConstantNames(fileContent);
         allConstants.push(...constantNames);
       }
@@ -411,7 +411,7 @@ class ConnectorBuilder {
         }
 
         // For constants files, also extract object/variable names
-        if (file.includes('Constants/')) {
+        if (file.includes('Constants' + path.sep)) {
           const constantNames = this.extractConstantNames(fileContent);
           for (const constantName of constantNames) {
             coreClasses[constantName] = constantName;
@@ -540,17 +540,27 @@ class ConnectorBuilder {
 export default defineConfig({
   build: {
     lib: {
-      entry: 'build/index.js',
+      entry: {
+        index: 'build/index.js',
+        'connector-runner': 'src/connector-runner.js',
+      },
       name: 'ConnectorBundle',
-      fileName: 'index',
       formats: ['cjs', 'es'],
     },
     outDir: 'dist',
     emptyOutDir: false,
     minify: false,
     rollupOptions: {
+      external: [
+        '@owox/connectors',
+        'adm-zip',
+        '@google-cloud/bigquery',
+        '@aws-sdk/client-athena',
+        '@aws-sdk/client-s3',
+        '@aws-sdk/lib-storage',
+      ],
       output: {
-        inlineDynamicImports: true,
+        preserveModules: false,
       },
       watch: {
         exclude: ['dist/**', 'build/**', 'node_modules/**'],

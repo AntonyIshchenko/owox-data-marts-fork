@@ -7,7 +7,7 @@ import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { AuthorizationContext } from '../../idp';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
@@ -33,12 +33,21 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
+import { ConnectorSecretService } from '../services/connector-secret.service';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
+import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
+import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 @Injectable()
 export class DataMartMapper {
-  constructor(private readonly dataStorageMapper: DataStorageMapper) {}
+  constructor(
+    private readonly dataStorageMapper: DataStorageMapper,
+    private readonly connectorSecretService: ConnectorSecretService
+  ) {}
 
   toCreateDomainCommand(
     context: AuthorizationContext,
@@ -47,7 +56,13 @@ export class DataMartMapper {
     return new CreateDataMartCommand(context.projectId, context.userId, dto.title, dto.storageId);
   }
 
-  toDomainDto(entity: DataMart): DataMartDto {
+  toDomainDto(
+    entity: DataMart,
+    counters?: {
+      triggersCount?: number;
+      reportsCount?: number;
+    }
+  ): DataMartDto {
     return new DataMartDto(
       entity.id,
       entity.title,
@@ -58,7 +73,10 @@ export class DataMartMapper {
       entity.definitionType,
       entity.definition,
       entity.description,
-      entity.schema
+      entity.schema,
+      entity.connectorState?.state as ConnectorStateData | undefined,
+      counters?.triggersCount ?? 0,
+      counters?.reportsCount ?? 0
     );
   }
 
@@ -73,23 +91,30 @@ export class DataMartMapper {
     };
   }
 
-  toResponse(dto: DataMartDto): DataMartResponseApiDto {
+  async toResponse(dto: DataMartDto): Promise<DataMartResponseApiDto> {
+    const maskedDefinition =
+      dto.definitionType === DataMartDefinitionType.CONNECTOR
+        ? await this.connectorSecretService.mask(dto.definition as ConnectorDefinition)
+        : dto.definition;
     return {
       id: dto.id,
       title: dto.title,
       status: dto.status,
       storage: this.dataStorageMapper.toApiResponse(dto.storage),
       definitionType: dto.definitionType,
-      definition: dto.definition,
+      definition: maskedDefinition,
       description: dto.description,
       schema: dto.schema,
+      connectorState: dto.connectorState,
+      triggersCount: dto.triggersCount,
+      reportsCount: dto.reportsCount,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
   }
 
-  toResponseList(dtos: DataMartDto[]): DataMartResponseApiDto[] {
-    return dtos.map(dto => this.toResponse(dto));
+  async toResponseList(dtos: DataMartDto[]): Promise<DataMartResponseApiDto[]> {
+    return Promise.all(dtos.map(dto => this.toResponse(dto)));
   }
 
   toUpdateDefinitionCommand(
@@ -100,14 +125,15 @@ export class DataMartMapper {
     return new UpdateDataMartDefinitionCommand(
       id,
       context.projectId,
-      context.userId,
       dto.definitionType,
-      dto.definition
+      dto.definition,
+      dto.sourceDataMartId,
+      dto.sourceConfigurationId
     );
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetDataMartCommand {
-    return new GetDataMartCommand(id, context.projectId, context.userId);
+    return new GetDataMartCommand(id, context.projectId);
   }
 
   toGetDataMartRunsCommand(
@@ -116,11 +142,11 @@ export class DataMartMapper {
     limit: number,
     offset: number
   ): GetDataMartRunsCommand {
-    return new GetDataMartRunsCommand(id, context.projectId, context.userId, limit, offset);
+    return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
   }
 
-  toListCommand(context: AuthorizationContext): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId, context.userId);
+  toListCommand(context: AuthorizationContext, connectorName?: string): ListDataMartsCommand {
+    return new ListDataMartsCommand(context.projectId, connectorName);
   }
 
   toUpdateTitleCommand(
@@ -128,7 +154,7 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: UpdateDataMartTitleApiDto
   ): UpdateDataMartTitleCommand {
-    return new UpdateDataMartTitleCommand(id, context.projectId, context.userId, dto.title);
+    return new UpdateDataMartTitleCommand(id, context.projectId, dto.title);
   }
 
   toUpdateDescriptionCommand(
@@ -136,20 +162,15 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: UpdateDataMartDescriptionApiDto
   ): UpdateDataMartDescriptionCommand {
-    return new UpdateDataMartDescriptionCommand(
-      id,
-      context.projectId,
-      context.userId,
-      dto.description
-    );
+    return new UpdateDataMartDescriptionCommand(id, context.projectId, dto.description);
   }
 
   toPublishCommand(id: string, context: AuthorizationContext): PublishDataMartCommand {
-    return new PublishDataMartCommand(id, context.projectId, context.userId);
+    return new PublishDataMartCommand(id, context.projectId);
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataMartCommand {
-    return new DeleteDataMartCommand(id, context.projectId, context.userId);
+    return new DeleteDataMartCommand(id, context.projectId);
   }
 
   toRunCommand(
@@ -157,7 +178,7 @@ export class DataMartMapper {
     context: AuthorizationContext,
     payload?: Record<string, unknown>
   ): RunDataMartCommand {
-    return new RunDataMartCommand(id, context.projectId, context.userId, payload);
+    return new RunDataMartCommand(id, context.projectId, context.userId, RunType.manual, payload);
   }
 
   toCancelRunCommand(
@@ -165,14 +186,14 @@ export class DataMartMapper {
     runId: string,
     context: AuthorizationContext
   ): CancelDataMartRunCommand {
-    return new CancelDataMartRunCommand(id, runId, context.projectId, context.userId);
+    return new CancelDataMartRunCommand(id, runId, context.projectId);
   }
 
   toDefinitionValidateCommand(
     id: string,
     context: AuthorizationContext
   ): ValidateDataMartDefinitionCommand {
-    return new ValidateDataMartDefinitionCommand(id, context.projectId, context.userId);
+    return new ValidateDataMartDefinitionCommand(id, context.projectId);
   }
 
   toDefinitionValidationResponse(
@@ -190,7 +211,7 @@ export class DataMartMapper {
     id: string,
     context: AuthorizationContext
   ): ActualizeDataMartSchemaCommand {
-    return new ActualizeDataMartSchemaCommand(id, context.projectId, context.userId);
+    return new ActualizeDataMartSchemaCommand(id, context.projectId);
   }
 
   toUpdateSchemaCommand(
@@ -198,7 +219,7 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: UpdateDataMartSchemaApiDto
   ): UpdateDataMartSchemaCommand {
-    return new UpdateDataMartSchemaCommand(id, context.projectId, context.userId, dto.schema);
+    return new UpdateDataMartSchemaCommand(id, context.projectId, dto.schema);
   }
 
   toSqlDryRunCommand(
@@ -206,7 +227,7 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: SqlDryRunRequestApiDto
   ): SqlDryRunCommand {
-    return new SqlDryRunCommand(dataMartId, context.projectId, context.userId, dto.sql);
+    return new SqlDryRunCommand(dataMartId, context.projectId, dto.sql);
   }
 
   toSqlDryRunResponse(result: SqlDryRunResult): SqlDryRunResponseApiDto {
@@ -220,12 +241,17 @@ export class DataMartMapper {
   toDataMartRunDto(entity: DataMartRun): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
-      entity.status! as DataMartRunStatus,
+      entity.status || null,
+      entity.type || null,
+      entity.runType || null,
       entity.dataMartId,
-      entity.definitionRun! as ConnectorDefinition,
+      entity.definitionRun || null,
+      entity.reportDefinition || null,
       entity.logs || [],
       entity.errors || [],
-      entity.createdAt
+      entity.createdAt,
+      entity.startedAt || null,
+      entity.finishedAt || null
     );
   }
 
@@ -233,17 +259,37 @@ export class DataMartMapper {
     return entities.map(entity => this.toDataMartRunDto(entity));
   }
 
-  toRunsResponse(runs: DataMartRunDto[]): DataMartRunsResponseApiDto {
-    return {
-      runs: runs.map(run => ({
-        id: run.id,
-        status: run.status,
-        dataMartId: run.dataMartId,
-        definitionRun: run.definitionRun,
-        logs: run.logs,
-        errors: run.errors,
-        createdAt: run.createdAt,
-      })),
-    };
+  async toRunsResponse(runs: DataMartRunDto[]): Promise<DataMartRunsResponseApiDto> {
+    const maskedRuns = await Promise.all(
+      runs.map(async run => {
+        let maskedDefinitionRun: DataMartDefinition | undefined;
+        if (run.definitionRun && isConnectorDefinition(run.definitionRun)) {
+          maskedDefinitionRun = await this.connectorSecretService.mask(run.definitionRun);
+        }
+
+        return {
+          id: run.id,
+          status: run.status,
+          type: run.type || null,
+          runType: run.runType || null,
+          dataMartId: run.dataMartId,
+          definitionRun: maskedDefinitionRun || run.definitionRun || null,
+          reportDefinition: run.reportDefinition,
+          logs: run.logs,
+          errors: run.errors,
+          createdAt: run.createdAt,
+          startedAt: run.startedAt || null,
+          finishedAt: run.finishedAt || null,
+        };
+      })
+    );
+    return { runs: maskedRuns };
+  }
+
+  toListDataMartsByConnectorNameCommand(
+    connectorName: string,
+    context: AuthorizationContext
+  ): ListDataMartsByConnectorNameCommand {
+    return new ListDataMartsByConnectorNameCommand(connectorName, context.projectId);
   }
 }

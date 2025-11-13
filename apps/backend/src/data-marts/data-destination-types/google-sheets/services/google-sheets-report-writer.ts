@@ -1,7 +1,8 @@
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
+import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { DataDestinationReportWriter } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
-import { Injectable, Logger, Scope } from '@nestjs/common';
+import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsDestination } from '../../data-destination-config.guards';
 import { isGoogleSheetsCredentials } from '../../data-destination-credentials.guards';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
@@ -14,6 +15,9 @@ import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-format
 import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
+import { SheetsReportRunSuccessfullyEvent } from '../../../events/sheets-report-run-successfully.event';
+import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
+import { OwoxProducer } from '@owox/internal-helpers';
 
 /**
  * Service for writing report data to Google Sheets
@@ -25,12 +29,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
   private readonly logger = new Logger(GoogleSheetsReportWriter.name);
 
+  private report: Report;
   private adapter: GoogleSheetsApiAdapter;
 
   // State for current write operation
   private destination: GoogleSheetsConfig;
   private reportDataHeaders: ReportDataHeader[];
   private spreadsheetTimeZone: string;
+  private spreadsheetTitle: string;
   private sheetTitle: string;
   private dataMartTitle: string;
   private writtenRowsCount = 0;
@@ -41,7 +47,10 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly headerFormatter: SheetHeaderFormatter,
     private readonly metadataFormatter: SheetMetadataFormatter,
     private readonly valuesFormatter: SheetValuesFormatter,
-    private readonly adapterFactory: GoogleSheetsApiAdapterFactory
+    private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
+    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   /**
@@ -100,8 +109,8 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   /**
    * Finalizes the report by setting tab color, freezing header row, and adding metadata
    */
-  public async finalize(): Promise<void> {
-    return this.executeWithErrorHandling(async () => {
+  public async finalize(processingError?: Error): Promise<void> {
+    await this.executeWithErrorHandling(async () => {
       if (this.writtenRowsCount > 0) {
         const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
         const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
@@ -118,6 +127,22 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         ]);
       }
     }, 'Finalizing report with metadata and formatting');
+    if (!processingError) {
+      await this.consumptionTrackingService.registerSheetsReportRunConsumption(this.report, {
+        googleSheetsDocumentTitle: this.spreadsheetTitle,
+        googleSheetsListTitle: this.sheetTitle,
+      });
+
+      const dataMart = this.report.dataMart;
+      await this.producer.produceEvent(
+        new SheetsReportRunSuccessfullyEvent(
+          dataMart.id,
+          this.report.id,
+          dataMart.projectId,
+          this.report.createdById
+        )
+      );
+    }
   }
 
   /**
@@ -144,15 +169,21 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         );
       }
 
+      if (!spreadsheet.properties?.title) {
+        throw new Error('Spreadsheet title is undefined');
+      }
+
       if (!sheet.properties?.title) {
         throw new Error('Sheet title is undefined');
       }
 
+      this.spreadsheetTitle = spreadsheet.properties?.title;
       this.sheetTitle = sheet.properties?.title;
       this.availableRowsCount = sheet.properties?.gridProperties?.rowCount ?? 0;
       this.availableColumnsCount = sheet.properties?.gridProperties?.columnCount ?? 0;
       this.spreadsheetTimeZone = spreadsheet.properties?.timeZone ?? 'UTC';
       this.dataMartTitle = report.dataMart.title;
+      this.report = report;
     }, 'Initializing Google Sheets service and locating target sheet');
   }
 

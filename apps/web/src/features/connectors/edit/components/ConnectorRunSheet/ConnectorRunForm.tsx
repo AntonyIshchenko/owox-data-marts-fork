@@ -1,27 +1,29 @@
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { useForm } from 'react-hook-form';
-import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
+import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { RunType } from '../../../shared/enums/run-type.enum';
 import { ConnectorSpecificationAttribute } from '../../../shared/enums/connector-specification-attribute.enum';
 import {
-  Form,
   AppForm,
+  Form,
+  FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
   FormLayout,
-  FormActions,
-  FormSection,
-  FormDescription,
+  FormMessage,
   FormRadioGroup,
+  FormSection,
 } from '@owox/ui/components/form';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
-import { RequiredType } from '../../../shared/api/types/types';
+import { RequiredType } from '../../../shared/api';
+import { useDataMartContext } from '../../../../data-marts/edit/model';
+import { ConnectorStateSection } from './ConnectorStateSection';
 
 interface ConnectorRunFormProps {
   configuration: ConnectorDefinitionConfig | null;
@@ -34,12 +36,14 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const formId = useId();
   const form = useForm<ConnectorRunFormData>({
     defaultValues: {
-      runType: RunType.MANUAL_BACKFILL,
+      runType: RunType.INCREMENTAL,
     },
   });
 
   const { loading, loadingSpecification, connectorSpecification, fetchConnectorSpecification } =
     useConnector();
+
+  const { dataMart } = useDataMartContext();
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -101,15 +105,15 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
               name='runType'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel tooltip='Select how you want to load data: full backfill for a period or incremental updates'>
+                  <FormLabel tooltip='Select how you want to load data: incremental updates or full backfill for a period'>
                     Run type
                   </FormLabel>
                   <FormControl>
                     <>
                       <FormRadioGroup
                         options={[
-                          { value: RunType.MANUAL_BACKFILL, label: 'Backfill (custom period)' },
                           { value: RunType.INCREMENTAL, label: 'Incremental load' },
+                          { value: RunType.MANUAL_BACKFILL, label: 'Backfill (custom period)' },
                         ]}
                         value={field.value}
                         onChange={field.onChange}
@@ -117,14 +121,21 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                       />
                       <FormDescription>
                         {form.watch('runType') === RunType.MANUAL_BACKFILL
-                          ? 'Performs a full data load from the source for the selected period using override fields (such as start date, end date, etc.). Use this option to update historical data or reload a specific time range.'
-                          : 'Loads only new or changed data based on the current state of the Data Mart. Use this option to keep your Data Mart up to date without reloading existing data.'}
+                          ? 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
+                          : 'Adds only new or updated records since the last run, using the current state of your Data Mart as a reference. Ideal for keeping data fresh without reloading what`s already there.'}
                       </FormDescription>
                     </>
                   </FormControl>
                 </FormItem>
               )}
             />
+
+            {form.watch('runType') === RunType.INCREMENTAL && (
+              <ConnectorStateSection
+                configuration={configuration}
+                connectorState={dataMart?.connectorState ?? null}
+              />
+            )}
           </FormSection>
           {form.watch('runType') === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>

@@ -6,11 +6,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@owox/ui/components/sidebar';
-import { AppSidebar } from '../components/AppSidebar/app-sidebar.tsx';
+import { AppSidebar } from '../components/AppSidebar';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
 import { Toaster } from '../shared/components/Toaster';
+import { AuthGuard } from '../features/idp';
+import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
 
 // Constants
 const SIDEBAR_STATE_KEY = 'sidebar_state';
@@ -25,17 +27,15 @@ function MainLayoutContent() {
     <>
       <Toaster />
       <GlobalLoader isLoading={isLoading} />
-      <AppSidebar variant='inset' collapsible='icon' />
-      <SidebarInset>
-        <div className='relative h-full w-full'>
-          {showTrigger && (
-            <div className='absolute top-7 left-4 z-10 md:hidden'>
-              <SidebarTrigger />
-            </div>
-          )}
-          <Outlet />
-        </div>
-      </SidebarInset>
+      <AuthGuard redirectTo='/auth/sign-in'>
+        <AppSidebar variant='inset' collapsible='icon' />
+        <SidebarInset>
+          {showTrigger && <SidebarTrigger />}
+          <ProjectIdGuard>
+            <Outlet />
+          </ProjectIdGuard>
+        </SidebarInset>
+      </AuthGuard>
     </>
   );
 }

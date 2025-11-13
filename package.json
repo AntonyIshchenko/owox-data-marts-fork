@@ -22,21 +22,22 @@
   "scripts": {
     "audit": "npm run audit --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
+    "build:dep": "npm run build:dep --workspaces --if-present",
     "build:docs": "npm run build -w @owox/docs",
+    "build:owox": "npm run build -w owox",
     "clean": "npx -y shx echo '☢️  Starting total cleanup...' && npx -y shx rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist packages/*/dist + && npx -y shx echo '✅ Cleanup complete!'",
     "clean:reinstall": "npm run clean && npx -y shx rm -f package-lock.json && npx -y shx echo '⚙️  Installing dependencies...' && npm install && npx -y shx echo '✅ Install complete!'",
-    "connector-runner-node": "npm run connector-runner-node --workspace=packages/connector-runner",
     "dev:web": "npm run dev -w @owox/web",
     "dev:backend": "npm run dev -w @owox/backend",
     "dev:docs": "npm run dev -w @owox/docs",
     "dev:connectors": "npm run dev -w @owox/connectors",
+    "dev:owox": "npm run dev -w owox",
     "dev": "npm-run-all --parallel dev:web dev:backend dev:connectors",
-    "serve": "npm run build -w @owox/backend && npm run serve -w @owox/backend",
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
     "format:root": "prettier --write \"**/*.{js,ts,mjs,yml,yaml,json}\" --ignore-path .prettierignore.root",
     "format:root:check": "prettier --check \"**/*.{js,ts,mjs,yml,yaml,json}\" --ignore-path .prettierignore.root",
-    "format:packages": "prettier --write apps/backend/package.json apps/owox/package.json packages/connector-runner/package.json packages/connectors/package.json",
+    "format:packages": "node tools/format-package-info.mjs",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "lint:root": "eslint . --config ./eslint.config.mjs",
@@ -47,9 +48,10 @@
     "lint:md:all:fix": "markdownlint-cli2 --fix",
     "lint:md:root": "cross-env MDLINT_CONTEXT=root npx markdownlint-cli2",
     "lint:md:root:fix": "cross-env MDLINT_CONTEXT=root npx markdownlint-cli2 --fix",
-    "migration:run": "npm run migration:run -w @owox/backend",
-    "migration:revert": "npm run migration:revert -w @owox/backend",
-    "migration:create-template": "npm run migration:create-template -w @owox/backend",
+    "migrations:create-template": "npm run migrations:create-template -w @owox/backend",
+    "migrations:down": "npm run migrations:down --prefix apps/owox",
+    "migrations:status": "npm run migrations:status --prefix apps/owox",
+    "migrations:up": "npm run migrations:up --prefix apps/owox",
     "dump:create": "npm run dump:create -w @owox/backend",
     "dump:apply": "npm run dump:apply -w @owox/backend",
     "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
@@ -85,7 +87,6 @@
     "typescript-eslint": "^8.30.1"
   },
   "overrides": {
-    "@eslint/plugin-kit": "0.3.4",
-    "tmp": "^0.2.4"
+    "dompurify": "^3.2.4"
   }
 }

@@ -1,19 +1,19 @@
 import { Badge } from '@owox/ui/components/badge';
-import { RunStatus } from './types';
+import { DataMartRunStatus } from '../../../shared';
 
 interface StatusBadgeProps {
-  status: RunStatus;
+  status: DataMartRunStatus;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   switch (status) {
-    case RunStatus.RUNNING:
+    case DataMartRunStatus.RUNNING:
       return (
         <Badge variant='secondary' className='text-primary bg-primary/10'>
           Running
         </Badge>
       );
-    case RunStatus.SUCCESS:
+    case DataMartRunStatus.SUCCESS:
       return (
         <Badge
           variant='secondary'
@@ -22,7 +22,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Success
         </Badge>
       );
-    case RunStatus.FAILED:
+    case DataMartRunStatus.FAILED:
       return (
         <Badge
           variant='secondary'
@@ -31,13 +31,31 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Failed
         </Badge>
       );
-    case RunStatus.CANCELLED:
+    case DataMartRunStatus.CANCELLED:
       return (
         <Badge
           variant='secondary'
           className='bg-gray-50 text-gray-500 dark:bg-gray-950 dark:text-gray-400'
         >
           Cancelled
+        </Badge>
+      );
+    case DataMartRunStatus.INTERRUPTED:
+      return (
+        <Badge
+          variant='secondary'
+          className='bg-gray-50 text-gray-500 dark:bg-gray-950 dark:text-gray-400'
+        >
+          Interrupted
+        </Badge>
+      );
+    case DataMartRunStatus.PENDING:
+      return (
+        <Badge
+          variant='secondary'
+          className='bg-gray-50 text-gray-500 dark:bg-gray-950 dark:text-gray-400'
+        >
+          Pending
         </Badge>
       );
     default:

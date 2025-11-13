@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -12,6 +12,7 @@ import {
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartListItem } from '../../../model/types';
 import { useDataMartList } from '../../../model/hooks';
+import { useProjectRoute } from '../../../../../../shared/hooks';
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };
@@ -19,6 +20,7 @@ interface DataMartActionsCellProps {
 }
 
 export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCellProps) => {
+  const { scope } = useProjectRoute();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { deleteDataMart, refreshList } = useDataMartList();
@@ -49,20 +51,21 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         <DropdownMenuContent align='end'>
           <DropdownMenuItem>
             <Link
-              to={`/data-marts/${row.original.id}/data-setup`}
-              className='dm-card-table-body-row-actiondropdownitem'
+              to={scope(`/data-marts/${row.original.id}/data-setup`)}
+              className='flex gap-2 text-left'
             >
-              Open
+              <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
+              <span>Edit</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className='dm-card-table-body-row-actiondropdownitem text-red-600'
             onClick={() => {
               setIsDeleteDialogOpen(true);
             }}
           >
-            Delete
+            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+            <span className='text-red-600'>Delete</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

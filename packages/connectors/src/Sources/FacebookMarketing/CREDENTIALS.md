@@ -1,6 +1,6 @@
 # How to obtain the access token for the Facebook Ads source
 
-To connect to the Facebook Ads API and begin importing data into Google Sheets or BigQuery, follow the steps below.
+To connect to the Facebook Ads API and begin importing data, follow the steps below.
 
 ## Step 1: Sign In to the Meta for Developers Portal
 
@@ -34,165 +34,131 @@ Choose the appropriate **Business Portfolio**, then click the **Create App** but
 
 ![Facebook Business portfolio option](res/facebook_portfolio.png)
 
-## Step 3: Complete Business Verification
+## Step 3: Set Up Marketing API
 
-Navigate to **App Settings → Basic**, and initiate the **Business Verification** process.
-
-![Facebook Business Verification](res/facebook_verification.png)
-
-If prompted, connect your app to a business portfolio.
-
-![Facebook Connect](res/facebook_connect.png)
-
-Click **Start Business Verification**.  
-
-![Facebook Start Verification](res/facebook_start_verification.png)
-
-On the next page, locate the **Business Verification** section and click the button to proceed with the verification process.  
-
-![Facebook Portfolio Verification](res/facebook_portver.png)
-
-Fill in the form with accurate **contact** and **organizational** information about your business.
-
-> 📌 Make sure your submission meets [Meta's verification requirements](https://business.facebook.com/business/help/159334372093366).
-
-After submitting the form, the review process may take up to **2 business days**.  
-
-![Facebook Submitted](res/facebook_submitted.png)
-
-## Step 4: Set Up Marketing API
-
-Once your business is successfully verified, return to the [Developers Portal](https://developers.facebook.com/).  
-In your app dashboard, locate **Marketing API** and click **Set Up**.  
+Go to the new app. In your app dashboard, locate **Marketing API** and click **Set Up**.  
 
 ![Facebook Marketing API set up](res/facebook_setup.png)
 
-## Step 5: Grant API Permissions
+## Step 4: Get the temporary token
 
-Grant the required token permissions:
+First, ensure your app is in **Development Mode**:
 
-- `ads_read`  
-- `read_insights`  
+![Facebook Development Mode](res/facebook_devmode.png)
 
-   These permissions authorize your app to access advertising data from your Facebook account.  
+- Go to **App Settings → Basic**  
+- Copy your **App ID**  
+- Also note your **App Secret** (you’ll need it in the next step)
 
-![Facebook permissions granting](res/facebook_checkbox.png)
+![Facebook Copy App ID](res/facebook_copyappid.png)
 
-## Step 6: Generate and Save the Access Token
+Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
-Click the **Get Token** button.
+``` code
+https://www.facebook.com/v23.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123
+```
 
-![Facebook getting token](res/facebook_gettoken.png)
+> **Example**:
+> `https://www.facebook.com/v23.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,read_insights&state=abc123`
 
-Copy and securely save the generated access token.  
-    If needed, you can regenerate it later by navigating to **Marketing API > Tools**.
+- Open the generated URL in your browser  
+- Make sure you are logged in with the account that has access to the desired ad account  
+- Click **Connect**
 
-![Facebook saving token](res/facebook_token.png)
+![Facebook Connect](res/facebook_reconnect.png)
 
-## Step 7: Use the Access Token
+After authorization, you’ll be redirected to a URL (note the long `code` parameter).
+
+Copy and save the **code** value (everything after `code=` up to `&state=...`).  
+You will need this in the next step.
+
+![Facebook copy code](res/facebook_copycode.png)
+
+## Step 5: Generate and Save the Access Token
+
+Now, exchange the authorization code for an **Access Token**. Go to [ReqBin](https://reqbin.com/) or use **Postman**.  
+Send a `POST` request to:
+
+``` code
+https://graph.facebook.com/v23.0/oauth/access_token
+```
+
+with the following parameters in the **Body** tab:
+
+``` code
+client_id=YOU_APP_ID&
+client_secret=YOUR_APP_SECRET&
+redirect_uri=http://localhost:8080/&
+code=CODE_FROM_THE_PREVIOUS_STEP
+```
+
+![Facebook Query Format](res/facebook_query_format.png)
+
+![Facebook Query Ampersand](res/facebook_ampersand.png)
+
+![Facebook Query Send](res/facebook_send.png)
+
+Click the **Send** button.
+
+You should receive a response containing your **Access Token**.
+
+![Facebook token](res/facebook_token.png)
+
+Copy and securely save the generated **Access Token**.  
+This token will be required to authenticate your API requests.
+
+## Step 6: Use the Access Token
 
 Once you have the access token, you can begin using it as described in the [Getting Started guide](GETTING_STARTED.md).
 
-If you encounter API limit errors or see the message: **"Ad account owner has NOT granted ads_management or ads_read permission"**, it likely means your app is still operating with Standard Access.
-To resolve this, you’ll need to:
+## Troubleshooting Access Token Errors
 
-1. Switch your app to **Live Mode**
-2. Request **Advanced Access** for the following permissions:
+If you encounter any errors while obtaining the access token, please refer to the possible causes and solutions below:
 
-- `ads_read`
-- **Ads Management Standard Access**
+### Error: `This authorization code has been used`
 
-## Step 8: Request Advanced Access for Ads Management
+**Cause:**  
+The authorization code you’re trying to use has already been exchanged for an access token.  
+Each authorization code can only be used **once**.
 
-1. Go to the **App Review → Permissions and Features** tab.
-2. Locate **Ads Management Standard Access**.
-3. If the access level is set to **Standard Access**, click **Request Advanced Access**.
+**Solution:**  
+Repeat **Step 4** to generate a new temporary authorization code and try again.
 
-![Facebook Request Access](res/facebook_standard_access.png)
+### Error: `redirect_uri isn't an absolute URI. Check RFC 3986`
 
-Click the **Next** button.
+**Cause:**  
+The `redirect_uri` parameter in your request is incorrectly formatted or incomplete.  
+This field must contain a **valid absolute URI**.
 
-![Facebook Next](res/facebook_next.png)
+**Solution:**  
+Verify that the `redirect_uri` exactly matches the format shown below:  
 
-On the next screen, click **Go to Verification** and complete the required fields.
+![Facebook URI format](res/facebook_uri_format.png)
 
-![Facebook Verification](res/facebook_ver.png)
+Example of a correct format:  
 
-Describe in detail how your application will use Ads Management functionality.
+``` code
+http://localhost:8080/
+```
 
-**Example:**
+### Error: `This authorization code has expired`
 
-> _We are requesting Advanced Access to the Facebook API to support our internal data analytics operations. Our application's core function is to retrieve high-volume advertising cost and performance data from our company's ad accounts for detailed ROI analysis and financial reconciliation._
->
-> _Standard API limits would significantly restrict our ability to collect the comprehensive historical and daily data essential for this process. Advanced Access is required to ensure a continuous and reliable data flow for our analytical models._
->
-> _Our technical workflow utilizes the OWOX Data Mart connector to retrieve this information from the Facebook API. The data is then loaded directly into our Google BigQuery (GBQ) data warehouse, where it is used for internal analysis only. This application operates exclusively with our proprietary data._
+**Cause:**  
+The temporary authorization code has expired.  
+Facebook (and other platforms) issue short-lived codes that must be exchanged for tokens within a limited time window.
 
-![Facebook Description](res/facebook_description.png)
+**Solution:**  
+Repeat **Step 4** to obtain a new temporary code and retry the request.
 
-Record a short video showing the full connection process:
+---
 
-- Generating the token
-- Pasting it into Google Sheets
-- Displaying the error message in the **Log** sheet (if relevant)
-
-Drag and drop the video file into the form.
-
-![Facebook Video](res/facebook_video.png)
-
-In the question  
-  **"Do you have data processors or service providers, including your own companies, that will have access to the Platform Data that you obtain from Meta?"**  
-  → Select **No**
-
-![Facebook Data Handling](res/facebook_datahandling.png)
-
-Enter your **Company Name** and **Country of Operation**.
-
-![Facebook Entity](res/facebook_entity.png)
-
-For the question  
-  **"Have you provided the personal data or personal information of users to public authorities in response to national security requests in the past 12 months?"**  
-  → Select **No**
-
-![Facebook Personal Data](res/facebook_personal.png)
-
-Answer the next data-related questions according to your organization’s internal policies.
-
-![Facebook Personal Data Policies](res/facebook_personaldata.png)
-
-After completing all required fields, click the **Submit for Review** button.
-
-Meta will review your request, and you will be notified once it’s approved.
-
-## Step 9: Verify API Permissions and App Status
-
-To ensure your Facebook app is properly configured for the Ads API, complete the following checks:
-
-Navigate to the **Marketing API → Settings** tab and confirm that the **Ads API Access Level** is set to **Standard**.
-
-![Facebook Standard](res/fb_standard.png)
-
-Go to **App Review → Permissions and Features**.
-
-- Locate the `ads_read` permission and ensure it has either **Standard Access** or **Advanced Access**.  
-  Both access types are supported.
-
-![Facebook ads_read](res/fb_adsread.png)
-
-- Scroll to **Ads Management Standard Access** and confirm that it is set to **Advanced Access**.
-
-![Facebook Ads Management](res/fb_adsmanagement.png)
-
-Ensure that your app is set to **Live** mode (not in Development mode).  
-Only live apps can be used for real API calls.
-
-![Facebook Live Mode](res/fb_livemode.png)
+✅ **Tip:**  
+Always generate and use the authorization code **immediately** after receiving it to avoid expiration issues.
 
 ## Troubleshooting and Support
 
-If you encounter any issues:
+If you encounter any other issues:
 
-1. Check the "Logs" sheet for specific error messages
-2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
-3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
-4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
+1. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+2. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+3. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements

@@ -26,20 +26,32 @@ export function StepNavigation({
   onFinish,
   nextLabel = 'Next',
   backLabel = 'Back',
-  finishLabel = 'Finish',
+  finishLabel = 'Save',
 }: StepNavigationProps) {
   const isLastStep = currentStep === totalSteps;
 
+  // Single-step layout
+  if (totalSteps === 1) {
+    return (
+      <div className='w-full'>
+        <Button
+          className='w-full'
+          variant='default'
+          onClick={onFinish}
+          disabled={!canGoNext || isLoading}
+        >
+          {finishLabel}
+        </Button>
+      </div>
+    );
+  }
+
+  // Multi-step layout
   return (
-    <div className='flex items-center justify-between'>
+    <div className='flex w-full items-center justify-between gap-4'>
       <div className='flex-1'>
         {canGoBack && (
-          <Button
-            variant='outline'
-            onClick={onBack}
-            disabled={isLoading}
-            className='flex items-center gap-2'
-          >
+          <Button variant='outline' onClick={onBack} disabled={isLoading}>
             <ChevronLeft className='h-4 w-4' />
             {backLabel}
           </Button>
@@ -52,19 +64,11 @@ export function StepNavigation({
 
       <div className='flex flex-1 justify-end'>
         {isLastStep ? (
-          <Button
-            onClick={onFinish}
-            disabled={!canGoNext || isLoading}
-            className='flex items-center gap-2'
-          >
+          <Button variant='default' onClick={onFinish} disabled={!canGoNext || isLoading}>
             {finishLabel}
           </Button>
         ) : (
-          <Button
-            onClick={onNext}
-            disabled={!canGoNext || isLoading}
-            className='flex items-center gap-2'
-          >
+          <Button variant='default' onClick={onNext} disabled={!canGoNext || isLoading}>
             {nextLabel}
             <ChevronRight className='h-4 w-4' />
           </Button>

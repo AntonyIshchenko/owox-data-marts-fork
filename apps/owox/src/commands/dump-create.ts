@@ -1,9 +1,5 @@
-import { createRequire } from 'node:module';
-
+import { getPackageInfo } from '../utils/package-info.js';
 import { BaseCommand } from './base.js';
-
-const require = createRequire(import.meta.url);
-const packageInfo = require('../../package.json');
 
 /**
  * Command to create database dumps for the OWOX Data Marts application.
@@ -24,10 +20,10 @@ export default class DumpCreate extends BaseCommand {
    */
   public async run(): Promise<void> {
     const { flags } = await this.parse(DumpCreate);
+    this.loadEnvironment(flags);
 
-    this.initializeLogging(flags);
-    this.setupLogFormat(flags['log-format']);
-    this.log(`🚀 Starting OWOX Data Marts Dump Create (v${packageInfo.version})...`);
+    const packageInfo = getPackageInfo();
+    this.log(`Starting OWOX Data Marts Dump Create (v${packageInfo.version})...`);
 
     try {
       const { dumpInserts } = await import('@owox/backend');

@@ -6,12 +6,8 @@
  */
 
 var XAdsConnector = class XAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
-    super(config.mergeParameters({
-      DestinationTableNamePrefix: {
-        default: ""
-      }
-    }), source, null, runConfig);
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
+    super(config, source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -20,19 +16,20 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
-    const fields = XAdsHelper.parseFields(this.config.Fields.value);    
+  async startImportProcess() {
+    const fields = XAdsHelper.parseFields(this.config.Fields.value);
     const accountIds = XAdsHelper.parseAccountIds(this.config.AccountIDs.value);
 
     for (const accountId of accountIds) {
       for (const nodeName in fields) {
-        this.processNode({
+        await this.processNode({
           nodeName,
           accountId,
           fields: fields[nodeName] || []
         });
       }
-      this.source.clearTweetsCache(accountId);
+
+      this.source.clearCache(accountId);
     }
   }
 
@@ -43,21 +40,18 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, accountId, fields }) {
-    const storage = this.getStorageByNode(nodeName);
+  async processNode({ nodeName, accountId, fields }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      this.processTimeSeriesNode({
+      await this.processTimeSeriesNode({
         nodeName,
         accountId,
-        fields,
-        storage
+        fields
       });
     } else {
-      this.processCatalogNode({
+      await this.processCatalogNode({
         nodeName,
         accountId,
-        fields,
-        storage
+        fields
       });
     }
   }
@@ -70,27 +64,28 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, accountId, fields, storage }) {
+  async processTimeSeriesNode({ nodeName, accountId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-  
+
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
       return;
     }
-  
+
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
-      
-      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
-      const data = this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
-  
-      this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}`);
-  
-      if (data.length > 0) {
-        const preparedData = this.addMissingFieldsToData(data, fields);
-        storage.saveData(preparedData);
+      const formattedDate = DateUtils.formatDate(currentDate);
+
+      const data = await this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
+
+      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
+
+      if (data.length || this.config.CreateEmptyTables?.value) {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -98,7 +93,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       }
     }
   }
-  
+
   /**
    * Process a catalog node (e.g., campaigns, line items)
    * @param {Object} options - Processing options
@@ -107,13 +102,15 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, accountId, fields, storage }) {
-    const data = this.source.fetchData({ nodeName, accountId, fields });
-    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId}`);
+  async processCatalogNode({ nodeName, accountId, fields }) {
+    const data = await this.source.fetchData({ nodeName, accountId, fields });
 
-    if (data && data.length) {
-      const preparedData = this.addMissingFieldsToData(data, fields);
-      storage.saveData(preparedData);
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `No records have been fetched`);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -122,7 +119,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {string} nodeName - Name of the node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -137,12 +134,14 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
-          DestinationTableName: { value: this.source.fieldsSchema[nodeName].destinationName }
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

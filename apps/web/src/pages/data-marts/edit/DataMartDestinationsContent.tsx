@@ -1,50 +1,48 @@
-import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
-import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader';
-import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent';
-import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter';
-import { GoogleSheetsIcon, LookerStudioIcon } from '../../../shared';
-import { ReportsProvider } from '../../../features/data-marts/reports/shared';
 import {
-  GoogleSheetsReportsTable,
-  LookerStudioReportsTable,
-} from '../../../features/data-marts/reports/list';
+  DestinationCard,
+  EmptyDataMartDestinationsState,
+} from '../../../features/data-marts/reports/list/components';
+import { useOutletContext } from 'react-router-dom';
+import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
+import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import {
-  DataDestinationStatus,
-  DataDestinationType,
-  DataDestinationTypeModel,
-} from '../../../features/data-destination';
+  useDataDestinationsWithReports,
+  DataDestinationProvider,
+  type DataDestination,
+} from '../../../features/data-destination/shared';
+import { ReportsProvider } from '../../../features/data-marts/reports/shared/model/context';
+
+function DataMartDestinationsContentInner() {
+  const { dataMart } = useOutletContext<DataMartContextType>();
+  const { dataDestinations, isLoading } = useDataDestinationsWithReports();
+
+  if (!dataMart) return null;
+
+  return (
+    <div className='flex flex-col gap-4'>
+      {isLoading ? (
+        <SkeletonList />
+      ) : dataDestinations.length === 0 ? (
+        <EmptyDataMartDestinationsState />
+      ) : (
+        dataDestinations.map((destination: DataDestination) => (
+          <DestinationCard
+            key={destination.id}
+            destination={destination}
+            dataMartStatus={dataMart.status}
+          />
+        ))
+      )}
+    </div>
+  );
+}
 
 export default function DataMartDestinationsContent() {
   return (
-    <div className='flex flex-col gap-4'>
+    <DataDestinationProvider>
       <ReportsProvider>
-        <CollapsibleCard name='googlesheets' collapsible defaultCollapsed={false}>
-          <CollapsibleCardHeader
-            icon={GoogleSheetsIcon}
-            title='Google Sheets'
-            help='List of report exports to Google Sheets'
-          />
-          <CollapsibleCardContent>
-            <GoogleSheetsReportsTable></GoogleSheetsReportsTable>
-          </CollapsibleCardContent>
-          <CollapsibleCardFooter></CollapsibleCardFooter>
-        </CollapsibleCard>
-
-        {DataDestinationTypeModel.getInfo(DataDestinationType.LOOKER_STUDIO).status ===
-          DataDestinationStatus.ACTIVE && (
-          <CollapsibleCard name='lookerstudio' collapsible defaultCollapsed={false}>
-            <CollapsibleCardHeader
-              icon={LookerStudioIcon}
-              title='Looker Studio'
-              help='Looker Studio Destinations that make this Data Mart available as a data source in Looker Studio connector'
-            />
-            <CollapsibleCardContent>
-              <LookerStudioReportsTable></LookerStudioReportsTable>
-            </CollapsibleCardContent>
-            <CollapsibleCardFooter></CollapsibleCardFooter>
-          </CollapsibleCard>
-        )}
+        <DataMartDestinationsContentInner />
       </ReportsProvider>
-    </div>
+    </DataDestinationProvider>
   );
 }

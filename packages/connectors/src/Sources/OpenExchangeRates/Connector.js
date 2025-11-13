@@ -7,12 +7,8 @@
 
 var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends AbstractConnector {
 
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
-    super(config.mergeParameters({
-      DestinationTableNamePrefix: {
-        default: "Open_Exchange_Rates"
-      }
-    }), source, null, runConfig);
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
+    super(config, source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -22,40 +18,81 @@ var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends Abstra
 A method for invoking importNewData() to determine the parameters required for fetching new data
 
 */
-startImportProcess() {
+  /**
+   * Main method - entry point for the import process
+   * Processes all nodes defined in the fields configuration
+   */
+  async startImportProcess() {
+    const fields = ConnectorUtils.parseFields(this.config.Fields?.value);
 
-  let startDate = null;
-  let daysToFetch = null;
-  [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
+    for (const nodeName in fields) {
+      await this.processNode({
+        nodeName,
+        fields: fields[nodeName] || []
+      });
+    }
+  }
 
-  // start requesting data day by day from startDate to startDate + MaxFetchingDays
-  for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
+  /**
+   * Process a single node
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node to process
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processNode({ nodeName, fields }) {
+    if (this.source.fieldsSchema[nodeName].isTimeSeries) {
+      await this.processTimeSeriesNode({ nodeName, fields });
+    } else {
+      await this.processCatalogNode({ nodeName, fields });
+    }
+  }
 
-    // fetching new data from a data source  
-            let data = this.source.fetchData(startDate);
+  /**
+   * Process a time series node (historical exchange rates)
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processTimeSeriesNode({ nodeName, fields }) {
+    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
-    // there are fetched records to update
-    if( !data.length ) {      
-      
-      if( daysShift == 0) {
-        this.config.logMessage("ℹ️ No records have been fetched");
+    if (daysToFetch <= 0) {
+      console.log('No days to fetch for time series data');
+      return;
+    }
+
+    // Process data day by day
+    for (let daysShift = 0; daysShift < daysToFetch; daysShift++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(currentDate.getDate() + daysShift);
+
+      // Fetching new data from a data source
+      let data = await this.source.fetchData(currentDate);
+
+      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
+
+      if (data.length || this.config.CreateEmptyTables?.value) {
+        const preparedData = data.length ? data : [];
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
-    } else {
-
-      this.config.logMessage(`${data.length} rows were fetched`);
-      this.getStorageByNode("historical").saveData(data);
-
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
+  }
 
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      this.config.updateLastRequstedDate(startDate);
-    }
-    startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
-
-  }    
-
-}
+  /**
+   * Process a catalog node (placeholder for future use)
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  async processCatalogNode({ nodeName, fields }) {
+    // Placeholder for future catalog nodes
+    console.log(`Catalog node processing not implemented for ${nodeName}`);
+  }
 
 //---- getStorageName -------------------------------------------------
   /**
@@ -66,7 +103,7 @@ startImportProcess() {
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -81,16 +118,17 @@ startImportProcess() {
 
       let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
 
-      this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
-        this.config.mergeParameters({ 
-          DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName},
-          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName } 
-        }), 
+      this.storages[ nodeName ] = new globalThis[ this.storageName ](
+        this.config.mergeParameters({
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName},
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
+        }),
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
+      await this.storages[nodeName].init();
     }
 
     return this.storages[ nodeName ];

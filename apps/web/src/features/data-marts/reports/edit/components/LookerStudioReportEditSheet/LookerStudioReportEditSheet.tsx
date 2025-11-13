@@ -11,12 +11,14 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { LookerStudioReportEditForm } from '../LookerStudioReportEditForm';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
+import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 
 interface LookerStudioReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export function LookerStudioReportEditSheet({
@@ -24,9 +26,11 @@ export function LookerStudioReportEditSheet({
   onClose,
   initialReport,
   mode,
+  preSelectedDestination,
 }: LookerStudioReportEditSheetProps) {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
   const handleClose = useCallback(() => {
     if (isDirty) {
       setShowUnsavedDialog(true);
@@ -35,19 +39,16 @@ export function LookerStudioReportEditSheet({
     }
   }, [isDirty, onClose]);
 
-  // Memoize confirm close handler
   const confirmClose = useCallback(() => {
     setShowUnsavedDialog(false);
     setIsDirty(false);
     onClose();
   }, [onClose]);
 
-  // Handle form dirty state change
   const handleFormDirtyChange = useCallback((dirty: boolean) => {
     setIsDirty(dirty);
   }, []);
 
-  // Handle form submission success
   const handleFormSubmitSuccess = useCallback(() => {
     setIsDirty(false);
     onClose();
@@ -65,15 +66,11 @@ export function LookerStudioReportEditSheet({
       >
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>
-              {mode === ReportFormMode.CREATE
-                ? 'Connect Data Mart to Looker Studio'
-                : 'Update Looker Studio Connection'}
-            </SheetTitle>
+            <SheetTitle>{preSelectedDestination?.title ?? 'Looker Studio'}</SheetTitle>
             <SheetDescription>
               {mode === ReportFormMode.CREATE
-                ? 'Configure Data Mart as a data source for Looker Studio'
-                : 'Update Data Mart connection settings for Looker Studio'}
+                ? 'Set up Data Mart as a data source'
+                : 'Update connection details'}
             </SheetDescription>
           </SheetHeader>
 
@@ -84,6 +81,7 @@ export function LookerStudioReportEditSheet({
               onDirtyChange={handleFormDirtyChange}
               onSubmit={handleFormSubmitSuccess}
               onCancel={handleClose}
+              preSelectedDestination={preSelectedDestination}
             />
           </DataDestinationProvider>
         </SheetContent>

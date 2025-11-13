@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DataMartDefinitionTypeSelector } from './form/DataMartDefinitionTypeSelector.tsx';
 import { DataMartDefinitionForm } from './form/DataMartDefinitionForm.tsx';
 import { DataMartDefinitionType } from '../../../shared';
-
+import { useDataMartPreset } from '../../../shared/utils/useDataMartPreset.ts';
 import {
   createDataMartDefinitionSchema,
   type DataMartDefinitionFormData,
@@ -14,33 +14,62 @@ import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
-import type { SqlDefinitionConfig } from '../../model';
+import type { DataMartDefinitionConfig, SqlDefinitionConfig } from '../../model';
 
-export function DataMartDefinitionSettings() {
-  const { dataMart, updateDataMartDefinition } = useOutletContext<DataMartContextType>();
+interface DataMartDefinitionSettingsProps {
+  definitionType: DataMartDefinitionType | null;
+  initialDefinitionType: DataMartDefinitionType | null;
+  setDefinitionType: (type: DataMartDefinitionType) => void;
+}
+
+interface SqlValidationState {
+  isValid: boolean | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const initialSqlValidationState: SqlValidationState = {
+  isValid: null,
+  isLoading: false,
+  error: null,
+};
+
+const getSqlQueryFromDefinition = (
+  definitionType: DataMartDefinitionType | null,
+  currentDefinition: unknown
+): string => {
+  if (definitionType !== DataMartDefinitionType.SQL) {
+    return '';
+  }
+
+  const sqlDefinition = currentDefinition as SqlDefinitionConfig | undefined;
+  return sqlDefinition?.sqlQuery ?? '';
+};
+
+const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfig =>
+  getEmptyDefinition(type) as DataMartDefinitionConfig;
+
+export function DataMartDefinitionSettings({
+  definitionType,
+  initialDefinitionType,
+  setDefinitionType,
+}: DataMartDefinitionSettingsProps) {
+  const { dataMart, updateDataMartDefinition, runSchemaActualization } =
+    useOutletContext<DataMartContextType>();
+  const preset = useDataMartPreset();
 
   if (!dataMart) {
     throw new Error('Data mart not found');
   }
   const {
-    definitionType: initialDefinitionType,
     definition: initialDefinition,
     id: dataMartId,
     storage: { type: storageType },
   } = dataMart;
 
-  const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
-    initialDefinitionType
-  );
-  const [sqlValidationState, setSqlValidationState] = useState<{
-    isValid: boolean | null;
-    isLoading: boolean;
-    error: string | null;
-  }>({
-    isValid: null,
-    isLoading: false,
-    error: null,
-  });
+  const [, setSqlValidationState] = useState<SqlValidationState>(initialSqlValidationState);
+  const [shouldActualizeSchema, setShouldActualizeSchema] = useState(false);
+
   const getInitialFormValues = useCallback((): DataMartDefinitionFormData | undefined => {
     if (!definitionType) return undefined;
 
@@ -76,18 +105,6 @@ export function DataMartDefinitionSettings() {
     formState: { isDirty, isValid },
   } = methods;
 
-  const getSqlQueryFromDefinition = (
-    definitionType: DataMartDefinitionType | null,
-    currentDefinition: unknown
-  ): string => {
-    if (definitionType !== DataMartDefinitionType.SQL) {
-      return '';
-    }
-
-    const sqlDefinition = currentDefinition as SqlDefinitionConfig | undefined;
-    return sqlDefinition?.sqlQuery ?? '';
-  };
-
   const currentDefinition = watch('definition');
   const sqlCode = getSqlQueryFromDefinition(definitionType, currentDefinition);
 
@@ -96,6 +113,18 @@ export function DataMartDefinitionSettings() {
       reset(getInitialFormValues());
     }
   }, [definitionType, reset, getInitialFormValues]);
+
+  useEffect(() => {
+    if (!definitionType && !initialDefinitionType && preset?.definitionType) {
+      setDefinitionType(preset.definitionType);
+      const initialValues = {
+        definitionType: preset.definitionType,
+        definition: getEmptyDefinitionForUpdate(preset.definitionType),
+      } as DataMartDefinitionFormData;
+
+      reset(initialValues);
+    }
+  }, [preset, definitionType, initialDefinitionType, reset, setDefinitionType]);
 
   // Handle validation state changes from SqlValidator
   const handleValidationStateChange = useCallback(
@@ -114,74 +143,80 @@ export function DataMartDefinitionSettings() {
     []
   );
 
-  const handleTypeSelect = (type: DataMartDefinitionType) => {
-    setDefinitionType(type);
-  };
+  const handleTypeSelect = useCallback(
+    (type: DataMartDefinitionType) => {
+      setDefinitionType(type);
+    },
+    [setDefinitionType]
+  );
 
-  const onSubmit: SubmitHandler<DataMartDefinitionFormData> = async (
-    data: DataMartDefinitionFormData
-  ) => {
-    if (definitionType && dataMartId) {
-      try {
-        await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
-        reset(data);
-      } catch (error) {
-        console.error('Failed to update data mart definition:', error);
+  const onSubmit: SubmitHandler<DataMartDefinitionFormData> = useCallback(
+    async (data: DataMartDefinitionFormData) => {
+      if (definitionType && dataMartId) {
+        try {
+          await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
+          setShouldActualizeSchema(true);
+          reset(data);
+        } catch (error) {
+          console.error('Failed to update data mart definition:', error);
+        }
       }
+    },
+    [dataMartId, definitionType, updateDataMartDefinition, reset]
+  );
+
+  useEffect(() => {
+    if (shouldActualizeSchema) {
+      setShouldActualizeSchema(false);
+      void runSchemaActualization?.();
     }
-  };
+  }, [shouldActualizeSchema, runSchemaActualization]);
 
-  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleFormSubmit = useCallback(
+    (e?: React.FormEvent<HTMLFormElement>) => {
+      e?.preventDefault();
+      void handleSubmit(onSubmit)(e);
+    },
+    [handleSubmit, onSubmit]
+  );
 
-    // Prevent submission if SQL is invalid for SQL definition type
-    if (definitionType === DataMartDefinitionType.SQL && sqlValidationState.isValid === false) {
-      console.error('Cannot submit form with invalid SQL:', sqlValidationState.error);
-      return;
-    }
-
-    void handleSubmit(onSubmit)(e);
-  };
-
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     reset(getInitialFormValues());
-  };
+  }, [reset, getInitialFormValues]);
 
   const renderDefinitionForm = () => {
     if (!definitionType) return null;
 
     return (
       <form onSubmit={handleFormSubmit} className='space-y-4'>
-        <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
-        <div className='flex items-center gap-4'>
-          <Button
-            variant={'default'}
-            type='submit'
-            disabled={
-              !isValid ||
-              !isDirty ||
-              (definitionType === DataMartDefinitionType.SQL &&
-                (sqlValidationState.isValid === false || sqlValidationState.isLoading))
-            }
-          >
-            Save
-          </Button>
-          <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
-            Discard
-          </Button>
+        <DataMartDefinitionForm
+          definitionType={definitionType}
+          storageType={storageType}
+          preset={preset?.connectorSourceTitle}
+          saveDataMartDefinition={handleFormSubmit}
+        />
+        {definitionType !== DataMartDefinitionType.CONNECTOR && (
+          <div className='flex items-center gap-4'>
+            <Button variant={'default'} type='submit' disabled={!isValid || !isDirty}>
+              Save
+            </Button>
+            <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
+              Discard
+            </Button>
 
-          {/* SQL Validator for SQL definition type */}
-          {definitionType === DataMartDefinitionType.SQL && sqlCode && (
-            <>
-              <div className='h-6 w-px bg-gray-300'></div>
-              <SqlValidator
-                sql={sqlCode}
-                dataMartId={dataMartId}
-                onValidationStateChange={handleValidationStateChange}
-              />
-            </>
-          )}
-        </div>
+            {/* SQL Validator for SQL definition type */}
+            {definitionType === DataMartDefinitionType.SQL && sqlCode && (
+              <>
+                <div className='h-6 w-px bg-gray-300'></div>
+                <SqlValidator
+                  sql={sqlCode}
+                  dataMartId={dataMartId}
+                  onValidationStateChange={handleValidationStateChange}
+                />
+              </>
+            )}
+          </div>
+        )}
       </form>
     );
   };

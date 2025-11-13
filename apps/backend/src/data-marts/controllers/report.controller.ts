@@ -1,9 +1,7 @@
 import { Controller, Get, Post, Put, Body, Param, Delete } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  AuthContext,
-  AuthorizationContext,
-} from '../../common/authorization-context/authorization.context';
+import { AuthContext, AuthorizationContext, Auth } from '../../idp';
+import { Role, Strategy } from '../../idp/types/role-config.types';
 import { ReportMapper } from '../mappers/report.mapper';
 import { CreateReportRequestApiDto } from '../dto/presentation/create-report-request-api.dto';
 import { UpdateReportRequestApiDto } from '../dto/presentation/update-report-request-api.dto';
@@ -24,6 +22,7 @@ import {
   RunReportSpec,
   UpdateReportSpec,
 } from './spec/report.api';
+import { RunType } from '../../common/scheduler/shared/types';
 
 @Controller('reports')
 @ApiTags('Reports')
@@ -39,6 +38,7 @@ export class ReportController {
     private readonly mapper: ReportMapper
   ) {}
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Post()
   @CreateReportSpec()
   async create(
@@ -50,6 +50,7 @@ export class ReportController {
     return this.mapper.toResponse(report);
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id')
   @GetReportSpec()
   async get(
@@ -61,6 +62,7 @@ export class ReportController {
     return this.mapper.toResponse(report);
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get('data-mart/:dataMartId')
   @ListReportsByDataMartSpec()
   async listByDataMart(
@@ -72,6 +74,7 @@ export class ReportController {
     return this.mapper.toResponseList(reports);
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListReportsByProjectSpec()
   async listByProject(
@@ -82,6 +85,7 @@ export class ReportController {
     return this.mapper.toResponseList(reports);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Delete(':id')
   @DeleteReportSpec()
   async delete(
@@ -92,16 +96,18 @@ export class ReportController {
     await this.deleteReportService.run(command);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Post(':id/run')
   @RunReportSpec()
   async runReport(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
-    const command = this.mapper.toRunReportCommand(id, context);
+    const command = this.mapper.toRunReportCommand(id, context, RunType.manual);
     this.runReportService.runInBackground(command);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Put(':id')
   @UpdateReportSpec()
   async update(

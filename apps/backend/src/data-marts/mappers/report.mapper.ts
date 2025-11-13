@@ -10,9 +10,10 @@ import { GetReportCommand } from '../dto/domain/get-report.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { RunReportCommand } from '../dto/domain/run-report.command';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
+import { RunType } from '../../common/scheduler/shared/types';
 
 @Injectable()
 export class ReportMapper {
@@ -55,11 +56,11 @@ export class ReportMapper {
     return entities.map(entity => this.toDomainDto(entity));
   }
 
-  toResponse(dto: ReportDto): ReportResponseApiDto {
+  async toResponse(dto: ReportDto): Promise<ReportResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
-      dataMart: this.dataMartMapper.toResponse(dto.dataMart),
+      dataMart: await this.dataMartMapper.toResponse(dto.dataMart),
       dataDestinationAccess: this.dataDestinationMapper.toApiResponse(dto.dataDestinationAccess),
       destinationConfig: dto.destinationConfig,
       lastRunAt: dto.lastRunAt,
@@ -71,29 +72,34 @@ export class ReportMapper {
     };
   }
 
-  toResponseList(dtos: ReportDto[]): ReportResponseApiDto[] {
-    return dtos.map(dto => this.toResponse(dto));
+  async toResponseList(dtos: ReportDto[]): Promise<ReportResponseApiDto[]> {
+    return Promise.all(dtos.map(dto => this.toResponse(dto)));
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetReportCommand {
-    return new GetReportCommand(id, context.projectId, context.userId);
+    return new GetReportCommand(id, context.projectId);
   }
 
   toListByDataMartCommand(
     dataMartId: string,
     context: AuthorizationContext
   ): ListReportsByDataMartCommand {
-    return new ListReportsByDataMartCommand(dataMartId, context.projectId, context.userId);
+    return new ListReportsByDataMartCommand(dataMartId, context.projectId);
   }
 
   toListByProjectCommand(context: AuthorizationContext): ListReportsByProjectCommand {
-    return new ListReportsByProjectCommand(context.projectId, context.userId);
+    return new ListReportsByProjectCommand(context.projectId);
   }
 
-  toRunReportCommand(id: string, context: AuthorizationContext): RunReportCommand {
+  toRunReportCommand(
+    id: string,
+    context: AuthorizationContext,
+    runType: RunType
+  ): RunReportCommand {
     return {
       reportId: id,
       userId: context.userId,
+      runType,
     };
   }
 
@@ -105,7 +111,6 @@ export class ReportMapper {
     return new UpdateReportCommand(
       id,
       context.projectId,
-      context.userId,
       dto.title,
       dto.dataDestinationId,
       dto.destinationConfig

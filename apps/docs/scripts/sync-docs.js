@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
 import yaml from 'js-yaml';
 import matter from 'gray-matter';
+import Papa from 'papaparse';
 import { getConfig } from './env-config.js';
 import {
-  toTitleCase,
   normalizePathSeparators,
   normalizePathToKebabCase,
   normalizeSuffixForDirectoryStyleURL,
@@ -24,7 +24,7 @@ const CHANGELOG_PATH = path.join(MONOREPO_ROOT, 'apps/owox/CHANGELOG.md');
  * Main sync function that orchestrates the entire process
  */
 async function syncDocs() {
-  console.log('🔄 Starting documentation sync...');
+  console.log('Starting documentation sync...');
 
   // 1. Clear previos results and setup directories
   prepareFileSystem();
@@ -35,7 +35,7 @@ async function syncDocs() {
   // 4. Process manifests for Connectors
   await processManifests();
 
-  console.log(`✅ Documentation sync completed successfully!`);
+  console.log(`Documentation sync completed successfully!`);
 }
 
 /**
@@ -59,7 +59,9 @@ async function processMarkdownFiles() {
     return;
   }
 
-  console.log(`📄 Processing ${sourceFiles.length} .md files...`);
+  const metaData = prepareMetadataContent();
+
+  console.log(`Processing ${sourceFiles.length} .md files...`);
 
   // Process each file
   for (const sourceFilePath of sourceFiles) {
@@ -77,8 +79,11 @@ async function processMarkdownFiles() {
     // 3. Find and replace paths to other file links
     fileContent = processDocumentLinks(fileContent, filePaths);
 
-    // 4. Frontmatter
-    fileContent = processFrontmatter(fileContent, filePaths);
+    // 4. Replace bare GitHub video links on HTML tag
+    fileContent = processGithubVideoLinks(fileContent);
+
+    // 5. Frontmatter
+    fileContent = processFrontmatter(fileContent, filePaths, metaData);
 
     fs.writeFileSync(filePaths.destinationPath, fileContent);
   }
@@ -95,7 +100,7 @@ async function processManifests() {
     return;
   }
 
-  console.log(`📄 Processing ${manifestFiles.length} manifest.json files...`);
+  console.log(`Processing ${manifestFiles.length} manifest.json files...`);
 
   for (const manifestPath of manifestFiles) {
     const relativeManifestPath = path.relative(MONOREPO_ROOT, manifestPath);
@@ -105,7 +110,7 @@ async function processManifests() {
     const manifestData = JSON.parse(manifestContent);
 
     if (!manifestData.title) {
-      console.warn(`⚠️ Skipping manifest, no 'title' field found in: ${relativeManifestPath}`);
+      console.warn(`Skipping manifest, no 'title' field found in: ${relativeManifestPath}`);
       continue;
     }
 
@@ -140,7 +145,6 @@ async function findMarkdownFiles() {
     '**/node_modules/**',
     '**/CHANGELOG.md',
     'apps/docs/src/**',
-    'apps/backend/src/**',
     'apps/web/src/**',
   ];
 
@@ -273,37 +277,81 @@ function processDocumentLinks(fileContent, filePaths) {
 }
 
 /**
- * Processes frontmatter metadata, extracting titles and setting default values
+ * Processes GitHub video links in markdown content, converting bare URLs to HTML video tags
+ * @param {string} fileContent - Markdown content
+ * @returns {string} - Updated markdown content with GitHub video URLs converted to HTML video elements
+ */
+function processGithubVideoLinks(fileContent) {
+  const lines = fileContent.split('\n');
+
+  const processedLines = lines.map(line => {
+    // Remove markdownlint comments before checking the URL
+    const trimmedLine = line
+      .trim()
+      .replace(/<!--.*?-->/g, '')
+      .trim();
+    if (
+      trimmedLine.startsWith('<https://github.com/user-attachments/assets/') ||
+      trimmedLine.startsWith('https://github.com/user-attachments/assets/')
+    ) {
+      // Extract clean URL by removing angle brackets if present
+      const cleanUrl = trimmedLine.replace(/^<|>$/g, '');
+      return `<!-- markdownlint-disable-next-line MD033 MD034 -->
+<video controls playsinline muted style="max-width: 100%; height: auto;">
+  <!-- markdownlint-disable-next-line MD033 MD034 -->
+  <source src="${cleanUrl}" type="video/mp4">
+  Your browser does not support the video tag.
+</video>`;
+    }
+    return line;
+  });
+
+  return processedLines.join('\n');
+}
+
+/**
+ * Processes frontmatter metadata by orchestrating title, sidebar, and meta info processing
  * @param {string} fileContent - Markdown content with frontmatter
  * @param {Object} filePaths - Object containing source, relative, and destination paths
+ * @param {Array<Object>} metaData - Array of metadata objects from CSV containing page-specific meta information
  * @returns {string} - Updated markdown content with processed frontmatter
  */
-function processFrontmatter(fileContent, filePaths) {
+function processFrontmatter(fileContent, filePaths, metaData) {
   const { data: frontmatter, content: markdownBody } = matter(fileContent);
-  const { sourcePath, relativePath, destinationPath } = filePaths;
+
+  // 1. Title
+  fileContent = processFrontmatterTitle(frontmatter, markdownBody, fileContent, filePaths);
+
+  // 2. Sidebar
+  processFrontmatterSidebar(frontmatter, filePaths);
+
+  // 3. Add meta content data to HEAD tag
+  processFrontmatterMetaInfo(frontmatter, metaData, filePaths);
+
+  return matter.stringify(fileContent, frontmatter);
+}
+
+/**
+ * Extracts and sets the title in frontmatter, either from existing frontmatter, H1 heading, or default value
+ * @param {Object} frontmatter - Frontmatter object to be updated
+ * @param {string} markdownBody - Markdown content without frontmatter
+ * @param {string} fileContent - Full markdown content
+ * @param {Object} filePaths - Object containing source, relative, and destination paths
+ * @returns {string} - Updated markdown content with H1 removed if it was used for title
+ */
+function processFrontmatterTitle(frontmatter, markdownBody, fileContent, filePaths) {
+  const { sourcePath } = filePaths;
 
   if (!frontmatter.title) {
     const h1Match = markdownBody.match(/^#\s+(.*)/m);
-
     // Add title from H1 ...
     if (h1Match && h1Match[1]) {
       frontmatter.title = h1Match[1];
-
       // Delete H1 from content
       fileContent = fileContent.replace(h1Match[0], '').trim();
     } else {
-      // ... or generate by filename / dirname and add order
-      const fileName = normalizePathToKebabCase(path.parse(sourcePath).name);
-      const folderName = normalizePathToKebabCase(path.basename(path.dirname(sourcePath)));
-
-      const titleParts = [];
-      if (fileName === 'readme' || fileName === 'index') {
-        titleParts.push(toTitleCase(folderName));
-      } else {
-        titleParts.push(toTitleCase(fileName));
-      }
-
-      frontmatter.title = titleParts.join(' ') || 'Document';
+      // Default title
+      frontmatter.title = 'Document';
     }
   }
 
@@ -312,25 +360,129 @@ function processFrontmatter(fileContent, filePaths) {
     frontmatter.title = 'Changelog';
   }
 
-  // Add default metadata if not exist
-  frontmatter.description = frontmatter.description || `Documentation for ${relativePath}`;
-  frontmatter.template = frontmatter.template || 'doc';
+  return fileContent;
+}
 
-  // Simple sidebar order
+/**
+ * Sets sidebar configuration in frontmatter based on the destination filename
+ * @param {Object} frontmatter - Frontmatter object to be updated
+ * @param {Object} filePaths - Object containing source, relative, and destination paths
+ */
+function processFrontmatterSidebar(frontmatter, filePaths) {
+  const { destinationPath } = filePaths;
   const destFileName = path.basename(destinationPath, path.extname(destinationPath));
 
-  if (destFileName === 'readme' || destFileName === 'index') {
-    frontmatter.sidebar = { order: 0 };
-  } else {
-    frontmatter.sidebar = { order: destFileName === 'getting-started' ? 1 : 2 };
+  frontmatter.sidebar =
+    destFileName === 'readme' || destFileName === 'index'
+      ? { order: 0 }
+      : { order: destFileName === 'getting-started' ? 1 : 2 };
+}
+
+/**
+ * Adds SEO and Open Graph meta information to frontmatter from CSV metadata
+ * @param {Object} frontmatter - Frontmatter object to be updated
+ * @param {Array<Object>} metaData - Array of metadata objects from CSV containing page-specific meta information
+ * @param {Object} filePaths - Object containing source, relative, and destination paths
+ */
+function processFrontmatterMetaInfo(frontmatter, metaData, filePaths) {
+  const { sourcePath, relativePath } = filePaths;
+
+  const filePathObj = path.parse(normalizePathToKebabCase(relativePath));
+  let pagePath = `/${filePathObj.dir.replaceAll('\\', '/')}/${filePathObj.name}/`.replaceAll(
+    '//',
+    '/'
+  );
+
+  // handle custom page path cases
+  if (pagePath === '/readme/') {
+    pagePath = '/';
+  } else if (sourcePath === CHANGELOG_PATH) {
+    pagePath = '/docs/changelog/';
   }
 
-  return matter.stringify(fileContent, frontmatter);
+  const metaContent = metaData.find(metaContent => metaContent.pagePath === pagePath) || {};
+
+  frontmatter.description = metaContent.metaDescription || `Documentation for ${relativePath}`;
+
+  // add metainfo if present
+  if (metaContent.pagePath) {
+    frontmatter.head = frontmatter.head || [];
+
+    const { metaTitle, ogTitle, ogDescription } = metaContent;
+
+    if (metaTitle) {
+      frontmatter.head.push({
+        tag: 'title',
+        content: metaTitle,
+      });
+    }
+
+    if (ogTitle) {
+      frontmatter.head.push({
+        tag: 'meta',
+        attrs: {
+          property: 'og:title',
+          content: ogTitle,
+        },
+      });
+    }
+
+    if (ogDescription) {
+      frontmatter.head.push({
+        tag: 'meta',
+        attrs: {
+          property: 'og:description',
+          content: ogDescription,
+        },
+      });
+    }
+  }
+}
+
+/**
+ * Reads and parses CSV file containing metadata for pages (meta titles, descriptions, OG tags).
+ * Validates CSV structure and headers, throws errors if validation fails.
+ * @returns {Array<Object>} Array of metadata objects with pagePath, metaTitle, metaDescription, ogTitle, ogDescription
+ * @throws {Error} If CSV file cannot be read, has missing required headers, or has parsing errors
+ */
+function prepareMetadataContent() {
+  const csvContent = fs.readFileSync(path.join(APP_LOCATION, '/data/meta-content.csv'), 'utf-8');
+
+  const { data, errors, meta } = Papa.parse(csvContent, {
+    header: true,
+    skipEmptyLines: true,
+    transform: value => value.trim(),
+  });
+
+  // Validate that all required headers are present in the CSV file
+  const expectedHeaders = ['pagePath', 'metaTitle', 'metaDescription', 'ogTitle', 'ogDescription'];
+  const actualHeaders = meta.fields || [];
+
+  const missingHeaders = expectedHeaders.filter(header => !actualHeaders.includes(header));
+  if (missingHeaders.length > 0) {
+    throw new Error(
+      `Missing required CSV headers: ${missingHeaders.join(', ')}\n` +
+        `   Expected: ${expectedHeaders.join(', ')}\n` +
+        `   Found: ${actualHeaders.join(', ')}`
+    );
+  }
+
+  // Check for CSV parsing errors (e.g., field mismatch, malformed rows)
+  if (errors.length > 0) {
+    const errorsLog = errors
+      .map(error => `\n  - Row ${error.row}: ${error.message} (${error.type})`)
+      .join('');
+    throw new Error(`CSV parsing failed with errors:${errorsLog}`);
+  }
+
+  console.log(`CSV metadata parsed and validated successfully (${data.length} entries)`);
+
+  return data;
 }
 
 // Execute the sync process
 syncDocs().catch(error => {
-  console.error('❌ An error occurred during sync:', error);
+  console.error('An error occurred during sync:', error);
 
   process.exit(1);
 });
