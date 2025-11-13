@@ -58,7 +58,7 @@ jobs:
         run: npm run lint:md:all
         continue-on-error: true
 
-      - name: CheckSummury
+      - name: CheckSummary
         if: always()
         run: |
           failed=""
