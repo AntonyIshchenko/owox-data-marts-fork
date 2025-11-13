@@ -11,9 +11,9 @@ concurrency:
 
 jobs:
   audit:
-    name: Audit all dependencies
+    name: Audit all
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -24,7 +24,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
-      - name: Run Audit
+      - name: Run Audit all
         run: npm audit
