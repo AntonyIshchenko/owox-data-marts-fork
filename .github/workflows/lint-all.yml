@@ -58,6 +58,37 @@ jobs:
         run: npm run lint:md:all
         continue-on-error: true
 
-      - name: Fail if any check failed
-        if: steps.lint_ws.outcome == 'failure' || steps.lint_root.outcome == 'failure' || steps.format_ws.outcome == 'failure' || steps.format_root.outcome == 'failure' || steps.md.outcome == 'failure'
-        run: exit 1
+      - name: CheckSummury
+        if: always()
+        run: |
+          failed=""
+          if [ "${{ steps.lint_ws.outcome }}" = "failure" ]; then
+            echo "❌ ESLint Workspaces failed"
+            failed="true"
+            echo "ESLint Workspaces" >> failed.txt
+          fi
+          if [ "${{ steps.lint_root.outcome }}" = "failure" ]; then
+            echo "❌ ESLint Root failed"
+            failed="true"
+            echo "ESLint Root" >> failed.txt
+          fi
+          if [ "${{ steps.format_ws.outcome }}" = "failure" ]; then
+            echo "❌ Prettier Workspaces failed"
+            failed="true"
+            echo "Prettier Workspaces" >> failed.txt
+          fi
+          if [ "${{ steps.format_root.outcome }}" = "failure" ]; then
+            echo "❌ Prettier Root failed"
+            failed="true"
+            echo "Prettier Root" >> failed.txt
+          fi
+          if [ "${{ steps.md.outcome }}" = "failure" ]; then
+            echo "❌ Markdownlint All failed"
+            failed="true"
+            echo "Markdownlint All" >> failed.txt
+          fi
+          if [ "$failed" = "true" ]; then
+            echo "## Failed checks:" >> $GITHUB_STEP_SUMMARY
+            cat failed.txt >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
