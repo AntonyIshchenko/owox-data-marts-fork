@@ -1,9 +1,11 @@
-name: Test and Build all
+name: Test OWOX
 
 on:
   pull_request:
     paths:
-      - 'apps/**'
+      - 'apps/backend/**'
+      - 'apps/owox/**'
+      - 'apps/web/**'
       - 'packages/**'
   push:
     branches: [main]
@@ -58,28 +60,3 @@ jobs:
         run: ${{ matrix.test.command }}
         env:
           NODE_ENV: test
-
-  # Build job
-  build:
-    name: Build @owox/docs
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      # can't set --ignore-scripts because Astro uses postinstall
-      - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
-
-      - name: Run build
-        run: npm run build -w @owox/docs
-        env:
-          NODE_ENV: production

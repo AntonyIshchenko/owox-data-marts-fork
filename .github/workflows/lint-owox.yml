@@ -3,7 +3,9 @@ name: Code Quality all
 on:
   pull_request:
     paths:
-      - 'apps/**'
+      - 'apps/backend/**'
+      - 'apps/owox/**'
+      - 'apps/web/**'
       - 'packages/**'
   push:
     branches: [main]
