@@ -2,6 +2,9 @@ name: Test OWOX
 
 on:
   pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
     paths-ignore:
       - 'apps/docs/**'
   push:
