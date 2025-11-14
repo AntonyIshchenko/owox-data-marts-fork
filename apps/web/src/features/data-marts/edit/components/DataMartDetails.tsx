@@ -125,7 +125,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   );
 
   if (isLoading) {
-    // Loading data mart details...
+    // Loading data mart details....
   }
 
   if (!dataMart) {
