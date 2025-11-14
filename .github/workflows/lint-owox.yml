@@ -5,8 +5,6 @@ on:
     paths:
       - 'apps/**'
       - 'packages/**'
-    paths-ignore:
-      - 'apps/docs/**'
   push:
     branches: [main]
 
