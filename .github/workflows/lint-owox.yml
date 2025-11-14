@@ -1,0 +1,55 @@
+name: Code Quality OWOX
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+    paths-ignore:
+      - 'apps/docs/**'
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-checks:
+    name: ${{ matrix.check.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.check.timeout }}
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        check:
+          - name: 'ESLint'
+            command: 'npm run lint'
+            timeout: 10
+          - name: 'Prettier'
+            command: 'npm run format:check'
+            timeout: 5
+          - name: 'Markdownlint'
+            command: 'npm run lint:md'
+            timeout: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      - name: Build all internal packages
+        run: npm run build -w owox
+
+      - name: Run ${{ matrix.check.name }}
+        run: ${{ matrix.check.command }}
